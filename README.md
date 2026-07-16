@@ -1,75 +1,149 @@
 # YT Downloader
 
-Настольное WPF-приложение для Windows, которое скачивает доступные пользователю видео через `yt-dlp`. Для объединения потоков и конвертации аудио используются `ffmpeg` и `ffprobe`.
+Настольное WPF-приложение для Windows, которое анализирует ссылку, показывает сведения о найденном видео и скачивает доступные пользователю материалы через [yt-dlp](https://github.com/yt-dlp/yt-dlp). Для объединения видео- и аудиопотоков, проверки медиаданных и извлечения MP3 используются инструменты проекта [FFmpeg](https://ffmpeg.org/), а Node.js предоставляет yt-dlp среду выполнения JavaScript.
 
-> Используйте приложение только для материалов, на скачивание которых у вас есть разрешение правообладателя или иное законное право.
+> Используйте приложение только для материалов, которые вам разрешено скачивать правообладателем или законом. Поддержка сайта инструментом не означает, что скачивание любого размещённого там материала разрешено.
+
+## Интерфейс
+
+![Главное окно YT Downloader](docs/images/yt-downloader-main.png)
+
+В верхней части окна находятся поле ссылки, запуск анализа и обновление yt-dlp. После анализа приложение показывает название, длительность, миниатюру и доступные аудиодорожки. Справа выбираются папка, режим и ограничение качества.
+
+![Поле ссылки и параметры сохранения](docs/images/yt-downloader-controls.png)
+
+Нижняя часть окна содержит прогресс, скорость, объём полученных данных, оставшееся время, журнал yt-dlp и кнопки запуска или отмены операции.
 
 ## Возможности
 
-- анализ ссылки с показом названия, длительности и миниатюры;
-- выбор доступной аудиодорожки/языка после анализа ссылки;
-- загрузка MP4-видео или извлечение MP3-аудио;
-- ограничение качества: лучшее, 2160p, 1440p, 1080p, 720p или 480p;
-- прогресс, скорость, размер, оставшееся время и журнал yt-dlp;
-- отмена с завершением всего дерева дочернего процесса;
+- анализ одной ссылки без автоматического скачивания плейлиста;
+- отображение названия, длительности и миниатюры видео;
+- получение списка доступных аудиодорожек и языков;
+- сохранение MP4-видео или извлечение MP3-аудио с максимальным качеством;
+- ограничение разрешения: лучшее доступное, 2160p, 1440p, 1080p, 720p или 480p;
+- объединение раздельных видео- и аудиопотоков в MP4;
+- отображение процента, скорости, размера, оставшегося времени и журнала выполнения;
+- отмена операции с завершением всего дерева дочернего процесса;
 - обновление автономного `yt-dlp.exe` кнопкой в интерфейсе;
-- сохранение последней папки, режима и выбранного качества в `%LOCALAPPDATA%\YtDlpDownloader\settings.json`;
+- сохранение последней папки, режима и качества в `%LOCALAPPDATA%\YtDlpDownloader\settings.json`;
 - защита от одновременного запуска нескольких скачиваний.
 
-## Требования для сборки
+## Как проходит операция
+
+1. Приложение проверяет ссылку и запускает `yt-dlp.exe` напрямую через `System.Diagnostics.Process`, без `cmd.exe`.
+2. Для анализа yt-dlp возвращает JSON с метаданными и форматами; приложение извлекает из него заголовок, длительность, миниатюру и аудиодорожки.
+3. При работе с YouTube путь к `node.exe` передаётся yt-dlp через `--js-runtimes`. JavaScript-среда нужна для решения актуальных проверок проигрывателя YouTube.
+4. При скачивании yt-dlp выбирает потоки по режиму и ограничению разрешения. Путь к FFmpeg передаётся через `--ffmpeg-location`.
+5. `ffmpeg.exe` объединяет раздельные потоки в MP4 или извлекает аудио в MP3. `ffprobe.exe` доступен yt-dlp для анализа медиапотоков и задач постобработки.
+6. Машиночитаемый вывод `--progress-template` преобразуется в состояние интерфейса. При отмене дочерний процесс завершается целиком.
+
+## Сторонние компоненты
+
+Все четыре файла должны находиться рядом в каталоге `YT_downloader/YT_downloader/Tools`. Во время обычной сборки MSBuild копирует их в выходной каталог, а при публикации — в комплект приложения.
+
+| Файл | Версия в проверенном локальном комплекте | Назначение | Первоисточник и репозиторий |
+| --- | --- | --- | --- |
+| `yt-dlp.exe` | `2026.07.04` | Получение метаданных и форматов, скачивание потоков, выбор аудиодорожки, вывод прогресса и запуск постобработки. | [Проект и документация](https://github.com/yt-dlp/yt-dlp), [официальные выпуски](https://github.com/yt-dlp/yt-dlp/releases), [список поддерживаемых сайтов](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) |
+| `ffmpeg.exe` | `8.1.2-full_build-www.gyan.dev` | Универсальный медиаконвертер: объединяет видео и аудио, формирует MP4 и кодирует MP3. | [Документация ffmpeg](https://ffmpeg.org/ffmpeg.html), [главный Git-репозиторий](https://git.ffmpeg.org/ffmpeg.git), [официальное зеркало GitHub](https://github.com/FFmpeg/FFmpeg), [Windows-сборки gyan.dev](https://www.gyan.dev/ffmpeg/builds/) |
+| `ffprobe.exe` | `8.1.2-full_build-www.gyan.dev` | Анализатор медиаконтейнеров и потоков; выводит сведения в удобном для программ формате и используется yt-dlp вместе с FFmpeg. | [Документация ffprobe](https://ffmpeg.org/ffprobe.html), [главный Git-репозиторий](https://git.ffmpeg.org/ffmpeg.git), [официальное зеркало GitHub](https://github.com/FFmpeg/FFmpeg), [Windows-сборки gyan.dev](https://www.gyan.dev/ffmpeg/builds/) |
+| `node.exe` | `v24.18.0` | Среда выполнения JavaScript, передаваемая yt-dlp для полной поддержки YouTube и внешних EJS-сценариев. | [Сайт и загрузка Node.js](https://nodejs.org/en/download/), [репозиторий nodejs/node](https://github.com/nodejs/node), [руководство yt-dlp по JS-средам](https://github.com/yt-dlp/yt-dlp/wiki/EJS) |
+
+Версии выше получены командами `yt-dlp --version`, `ffmpeg -version`, `ffprobe -version` и `node --version`. Они описывают локальный комплект на момент обновления README и могут измениться после замены файлов или обновления yt-dlp.
+
+### Важные замечания об источниках
+
+- FFmpeg официально распространяет исходный код и на [странице загрузки](https://ffmpeg.org/download.html) ссылается на сторонние готовые сборки для Windows. Строка версии включённых файлов указывает на full build от [gyan.dev](https://www.gyan.dev/ffmpeg/builds/).
+- `ffmpeg.exe` и `ffprobe.exe` собраны из одного дерева исходного кода FFmpeg, но выполняют разные задачи.
+- yt-dlp рекомендует FFmpeg, ffprobe и поддерживаемую JavaScript-среду; для Node.js актуальные версии yt-dlp требуют Node 22 или новее. Подробности приведены в [разделе Dependencies](https://github.com/yt-dlp/yt-dlp#dependencies) и [руководстве EJS](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
+- У компонентов независимые лицензии. Перед распространением готового комплекта проверьте [лицензию yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE), [правовые сведения FFmpeg](https://ffmpeg.org/legal.html), параметры конкретной FFmpeg-сборки и [лицензию Node.js](https://github.com/nodejs/node/blob/main/LICENSE).
+
+## Подготовка каталога Tools
+
+Исполняемые файлы исключены из Git правилом `*.exe`, поэтому после обычного клонирования репозитория их нужно добавить вручную:
+
+```text
+YT_downloader/
+└── YT_downloader/
+    └── Tools/
+        ├── yt-dlp.exe
+        ├── ffmpeg.exe
+        ├── ffprobe.exe
+        └── node.exe
+```
+
+Рекомендуемый порядок:
+
+1. Скачайте `yt-dlp.exe` из [официального выпуска yt-dlp](https://github.com/yt-dlp/yt-dlp/releases/latest).
+2. Скачайте Windows-сборку FFmpeg по ссылке с [официальной страницы FFmpeg](https://ffmpeg.org/download.html#build-windows) и возьмите из её каталога `bin` файлы `ffmpeg.exe` и `ffprobe.exe`.
+3. Скачайте 64-битный архив Node.js для Windows с [официальной страницы](https://nodejs.org/en/download/) и скопируйте `node.exe`. Для текущих версий yt-dlp используйте Node.js 22 или новее.
+4. Проверьте комплект:
+
+```powershell
+.\YT_downloader\YT_downloader\Tools\yt-dlp.exe --version
+.\YT_downloader\YT_downloader\Tools\ffmpeg.exe -version
+.\YT_downloader\YT_downloader\Tools\ffprobe.exe -version
+.\YT_downloader\YT_downloader\Tools\node.exe --version
+```
+
+`ffplay.exe` приложению не требуется.
+
+## Требования для разработки
 
 - Windows 10/11 x64;
-- .NET 10 SDK;
-- Visual Studio с поддержкой WPF либо командная строка `dotnet`;
-- доступ к NuGet при первом восстановлении пакетов тестового проекта.
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0);
+- Visual Studio с поддержкой WPF или командная строка `dotnet`;
+- доступ к NuGet при первом восстановлении пакетов тестового проекта;
+- заполненный каталог `Tools` для анализа и скачивания.
 
-Исполняемые файлы `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe` и `node.exe` уже находятся в `YT_downloader/Tools` и копируются в выходной каталог обычной сборки. Node.js используется `yt-dlp` для получения полного списка форматов YouTube. `ffplay.exe` приложению не требуется.
+## Сборка, запуск и тесты
 
-## Сборка и запуск
-
-Из папки с файлом `YT_downloader.slnx`:
-
-```powershell
-dotnet restore YT_downloader.slnx
-dotnet build YT_downloader.slnx -c Release
-dotnet run --project .\YT_downloader\YT_downloader.csproj
-```
-
-Запуск тестов:
+Команды выполняются из корня репозитория:
 
 ```powershell
-dotnet test YT_downloader.slnx -c Release
+dotnet restore .\YT_downloader\YT_downloader.slnx
+dotnet build .\YT_downloader\YT_downloader.slnx -c Release
+dotnet run --project .\YT_downloader\YT_downloader\YT_downloader.csproj
+dotnet test .\YT_downloader\YT_downloader.slnx -c Release
 ```
 
-## Публикация self-contained для Windows x64
+## Self-contained публикация для Windows x64
 
-Профиль `Properties/PublishProfiles/win-x64.pubxml` создаёт self-contained single-file приложение. В него включены .NET 10 Runtime и компоненты yt-dlp/ffmpeg/ffprobe/Node.js, поэтому на другом компьютере с Windows x64 не требуется устанавливать .NET SDK, Runtime или JavaScript-среду. Служебные компоненты извлекаются механизмом .NET при запуске.
+Профиль `Properties/PublishProfiles/win-x64.pubxml` создаёт self-contained single-file приложение. В комплект включаются .NET 10 Runtime и файлы из `Tools`, поэтому на целевом компьютере не нужно отдельно устанавливать .NET или Node.js.
 
 ```powershell
-dotnet publish .\YT_downloader\YT_downloader.csproj -c Release -p:PublishProfile=win-x64
+dotnet publish .\YT_downloader\YT_downloader\YT_downloader.csproj `
+  -c Release `
+  -p:PublishProfile=win-x64
 ```
 
-Результат появится в `YT_downloader/bin/Release/net10.0-windows/win-x64/publish/`.
+Результат появится в `YT_downloader/YT_downloader/bin/Release/net10.0-windows/win-x64/publish/`.
 
 Эквивалентная команда без профиля:
 
 ```powershell
-dotnet publish .\YT_downloader\YT_downloader.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true
+dotnet publish .\YT_downloader\YT_downloader\YT_downloader.csproj `
+  -c Release `
+  -r win-x64 `
+  --self-contained true `
+  -p:PublishSingleFile=true `
+  -p:IncludeAllContentForSelfExtract=true `
+  -p:EnableCompressionInSingleFile=true
 ```
 
-## Структура
+## Структура проекта
 
 - `Views` — WPF-окна;
-- `ViewModels` — состояние интерфейса и сценарии пользователя;
+- `ViewModels` — состояние интерфейса и пользовательские сценарии;
 - `Models` — модели видео, загрузки, прогресса и настроек;
 - `Services` — запуск yt-dlp, разбор вывода, настройки и системные диалоги;
 - `Commands` — синхронные и асинхронные MVVM-команды;
-- `Tools` — автономные yt-dlp, ffmpeg, ffprobe и Node.js;
-- `YT_downloader.Tests` — unit-тесты парсера прогресса.
+- `Tools` — локальные исполняемые файлы yt-dlp, FFmpeg/ffprobe и Node.js;
+- `YT_downloader.Tests` — модульные тесты аргументов и парсеров yt-dlp.
 
-## Примечания
+## Ограничения и диагностика
 
-- Приложение не запускает `cmd.exe`: `yt-dlp.exe` создаётся напрямую через `System.Diagnostics.Process`.
-- Все аргументы добавляются через `ProcessStartInfo.ArgumentList`, поэтому ссылки и пути не объединяются в командную строку вручную.
-- При отмене может остаться файл `.part`; yt-dlp обычно использует его для продолжения последующей загрузки.
-- Для закрытых видео, требующих авторизации, в текущей версии не предусмотрен импорт cookies.
+- Приложение не запускает `cmd.exe`: аргументы передаются через `ProcessStartInfo.ArgumentList`, поэтому ссылки и пути не собираются вручную в командную строку.
+- Анализ и скачивание выполняются только для одной ссылки: `--no-playlist` предотвращает автоматическую загрузку плейлиста.
+- После отмены может остаться файл `.part`; yt-dlp обычно использует его для продолжения следующей загрузки.
+- Импорт cookies для закрытых видео в текущей версии интерфейса не реализован.
+- Если в правом верхнем углу указано, что компонент не найден, проверьте имена файлов и каталог `Tools`. Подробный вывод yt-dlp отображается в журнале выполнения.
