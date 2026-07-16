@@ -11,11 +11,14 @@ public sealed class YtDlpService : IYtDlpService
 {
     private const string ProgressTemplate =
         "download:download:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._downloaded_bytes_str)s/%(progress._total_bytes_str)s|%(progress._eta_str)s";
+    private const string YouTubeExtractorArguments =
+        "youtube:player_client=tv_downgraded,android_vr";
 
     private readonly string _toolsDirectory;
     private readonly string _ytDlpPath;
     private readonly string _ffmpegPath;
     private readonly string _ffprobePath;
+    private readonly JavaScriptRuntime? _javaScriptRuntime;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly object _processSync = new();
     private Process? _activeProcess;
@@ -28,12 +31,14 @@ public sealed class YtDlpService : IYtDlpService
         _ytDlpPath = Path.Combine(_toolsDirectory, "yt-dlp.exe");
         _ffmpegPath = Path.Combine(_toolsDirectory, "ffmpeg.exe");
         _ffprobePath = Path.Combine(_toolsDirectory, "ffprobe.exe");
+        _javaScriptRuntime = FindJavaScriptRuntime(_toolsDirectory);
     }
 
     public ToolAvailability GetToolAvailability() => new(
         File.Exists(_ytDlpPath),
         File.Exists(_ffmpegPath),
-        File.Exists(_ffprobePath));
+        File.Exists(_ffprobePath),
+        _javaScriptRuntime is not null && File.Exists(_javaScriptRuntime.ExecutablePath));
 
     public async Task<VideoInfo> AnalyzeAsync(
         string url,
@@ -47,7 +52,7 @@ public sealed class YtDlpService : IYtDlpService
         {
             var result = await RunBufferedProcessAsync(
                 _ytDlpPath,
-                ["--dump-single-json", "--skip-download", "--no-playlist", "--no-warnings", url],
+                BuildAnalyzeArguments(url),
                 cancellationToken);
 
             ReportLines(result.StandardError, log);
@@ -147,7 +152,7 @@ public sealed class YtDlpService : IYtDlpService
 
     public async Task<string> UpdateAsync(IProgress<string>? log, CancellationToken cancellationToken)
     {
-        EnsureTools(requireMediaTools: false);
+        EnsureTools(requireMediaTools: false, requireJavaScriptRuntime: false);
         await _operationGate.WaitAsync(cancellationToken);
 
         try
@@ -172,7 +177,15 @@ public sealed class YtDlpService : IYtDlpService
         }
     }
 
-    private IReadOnlyList<string> BuildDownloadArguments(DownloadRequest request)
+    internal IReadOnlyList<string> BuildAnalyzeArguments(string url)
+    {
+        var arguments = new List<string>();
+        AddYouTubeExtractionArguments(arguments);
+        arguments.AddRange(["--dump-single-json", "--skip-download", "--no-playlist", "--no-warnings", url]);
+        return arguments;
+    }
+
+    internal IReadOnlyList<string> BuildDownloadArguments(DownloadRequest request)
     {
         var arguments = new List<string>
         {
@@ -187,6 +200,7 @@ public sealed class YtDlpService : IYtDlpService
             "--output",
             Path.Combine(request.OutputDirectory, "%(title).180B [%(id)s].%(ext)s")
         };
+        AddYouTubeExtractionArguments(arguments);
 
         if (request.Mode == DownloadMode.Mp3Audio)
         {
@@ -214,6 +228,19 @@ public sealed class YtDlpService : IYtDlpService
 
         arguments.Add(request.Url);
         return arguments;
+    }
+
+    private void AddYouTubeExtractionArguments(List<string> arguments)
+    {
+        if (_javaScriptRuntime is null)
+        {
+            return;
+        }
+
+        arguments.AddRange([
+            "--js-runtimes", $"{_javaScriptRuntime.Name}:{_javaScriptRuntime.ExecutablePath}",
+            "--extractor-args", YouTubeExtractorArguments
+        ]);
     }
 
     private async Task<ProcessResult> RunBufferedProcessAsync(
@@ -344,7 +371,7 @@ public sealed class YtDlpService : IYtDlpService
         }
     }
 
-    private void EnsureTools(bool requireMediaTools)
+    private void EnsureTools(bool requireMediaTools, bool requireJavaScriptRuntime = true)
     {
         var availability = GetToolAvailability();
         if (!availability.YtDlpExists)
@@ -352,6 +379,13 @@ public sealed class YtDlpService : IYtDlpService
             throw new YtDlpException(
                 YtDlpErrorKind.ToolMissing,
                 $"Не найден yt-dlp.exe. Ожидаемый путь: {_ytDlpPath}");
+        }
+
+        if (requireJavaScriptRuntime && !availability.JavaScriptRuntimeExists)
+        {
+            throw new YtDlpException(
+                YtDlpErrorKind.ToolMissing,
+                "Не найдена JavaScript-среда для yt-dlp. Поместите node.exe или deno.exe в папку Tools рядом с приложением.");
         }
 
         if (requireMediaTools && (!availability.FfmpegExists || !availability.FfprobeExists))
@@ -440,5 +474,38 @@ public sealed class YtDlpService : IYtDlpService
     private static bool ContainsAny(string source, params string[] values) =>
         values.Any(value => source.Contains(value, StringComparison.OrdinalIgnoreCase));
 
+    private static JavaScriptRuntime? FindJavaScriptRuntime(string toolsDirectory)
+    {
+        foreach (var runtime in new[]
+                 {
+                     new JavaScriptRuntime("deno", Path.Combine(toolsDirectory, "deno.exe")),
+                     new JavaScriptRuntime("node", Path.Combine(toolsDirectory, "node.exe"))
+                 })
+        {
+            if (File.Exists(runtime.ExecutablePath))
+            {
+                return runtime;
+            }
+        }
+
+        var pathDirectories = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var (name, executableName) in new[] { ("deno", "deno.exe"), ("node", "node.exe") })
+        {
+            foreach (var directory in pathDirectories)
+            {
+                var executablePath = Path.Combine(directory.Trim('"'), executableName);
+                if (File.Exists(executablePath))
+                {
+                    return new JavaScriptRuntime(name, Path.GetFullPath(executablePath));
+                }
+            }
+        }
+
+        return null;
+    }
+
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
+    private sealed record JavaScriptRuntime(string Name, string ExecutablePath);
 }

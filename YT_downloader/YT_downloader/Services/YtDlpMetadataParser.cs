@@ -54,16 +54,20 @@ public static class YtDlpMetadataParser
             var extension = GetString(format, "ext");
             var bitrate = GetDouble(format, "abr") ?? GetDouble(format, "tbr") ?? 0;
             var languagePreference = GetDouble(format, "language_preference") ?? 0;
+            var formatNote = GetString(format, "format_note");
             var isMp4Compatible = string.Equals(extension, "m4a", StringComparison.OrdinalIgnoreCase)
                 || audioCodec.StartsWith("mp4a", StringComparison.OrdinalIgnoreCase)
                 || audioCodec.StartsWith("aac", StringComparison.OrdinalIgnoreCase);
+            var isDynamicRangeCompression = formatId.EndsWith("-drc", StringComparison.OrdinalIgnoreCase)
+                || formatNote?.Contains("DRC", StringComparison.OrdinalIgnoreCase) == true;
 
             candidates.Add(new AudioFormatCandidate(
                 formatId,
                 language,
                 bitrate,
                 languagePreference,
-                isMp4Compatible));
+                isMp4Compatible,
+                isDynamicRangeCompression));
         }
 
         return candidates
@@ -71,11 +75,13 @@ public static class YtDlpMetadataParser
             .Select(group =>
             {
                 var best = group
-                    .OrderByDescending(candidate => candidate.Bitrate)
+                    .OrderBy(candidate => candidate.IsDynamicRangeCompression)
+                    .ThenByDescending(candidate => candidate.Bitrate)
                     .First();
                 var mp4 = group
                     .Where(candidate => candidate.IsMp4Compatible)
-                    .OrderByDescending(candidate => candidate.Bitrate)
+                    .OrderBy(candidate => candidate.IsDynamicRangeCompression)
+                    .ThenByDescending(candidate => candidate.Bitrate)
                     .FirstOrDefault();
                 var isOriginal = group.Any(candidate => candidate.LanguagePreference > 0);
 
@@ -169,5 +175,6 @@ public static class YtDlpMetadataParser
         string LanguageCode,
         double Bitrate,
         double LanguagePreference,
-        bool IsMp4Compatible);
+        bool IsMp4Compatible,
+        bool IsDynamicRangeCompression);
 }

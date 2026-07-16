@@ -23,7 +23,7 @@
 - Visual Studio с поддержкой WPF либо командная строка `dotnet`;
 - доступ к NuGet при первом восстановлении пакетов тестового проекта.
 
-Исполняемые файлы `yt-dlp.exe`, `ffmpeg.exe` и `ffprobe.exe` уже находятся в `YT_downloader/Tools` и копируются в выходной каталог обычной сборки. `ffplay.exe` приложению не требуется.
+Исполняемые файлы `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe` и `node.exe` уже находятся в `YT_downloader/Tools` и копируются в выходной каталог обычной сборки. Node.js используется `yt-dlp` для получения полного списка форматов YouTube. `ffplay.exe` приложению не требуется.
 
 ## Сборка и запуск
 
@@ -43,7 +43,7 @@ dotnet test YT_downloader.slnx -c Release
 
 ## Публикация self-contained для Windows x64
 
-Профиль `Properties/PublishProfiles/win-x64.pubxml` создаёт self-contained single-file приложение. В него включены .NET 10 Runtime и компоненты yt-dlp/ffmpeg/ffprobe, поэтому на другом компьютере с Windows x64 не требуется устанавливать .NET SDK или Runtime. Служебные компоненты извлекаются механизмом .NET при запуске.
+Профиль `Properties/PublishProfiles/win-x64.pubxml` создаёт self-contained single-file приложение. В него включены .NET 10 Runtime и компоненты yt-dlp/ffmpeg/ffprobe/Node.js, поэтому на другом компьютере с Windows x64 не требуется устанавливать .NET SDK, Runtime или JavaScript-среду. Служебные компоненты извлекаются механизмом .NET при запуске.
 
 ```powershell
 dotnet publish .\YT_downloader\YT_downloader.csproj -c Release -p:PublishProfile=win-x64
@@ -64,7 +64,7 @@ dotnet publish .\YT_downloader\YT_downloader.csproj -c Release -r win-x64 --self
 - `Models` — модели видео, загрузки, прогресса и настроек;
 - `Services` — запуск yt-dlp, разбор вывода, настройки и системные диалоги;
 - `Commands` — синхронные и асинхронные MVVM-команды;
-- `Tools` — автономные yt-dlp, ffmpeg и ffprobe;
+- `Tools` — автономные yt-dlp, ffmpeg, ffprobe и Node.js;
 - `YT_downloader.Tests` — unit-тесты парсера прогресса.
 
 ## Примечания

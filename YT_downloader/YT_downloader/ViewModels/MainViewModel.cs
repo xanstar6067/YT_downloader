@@ -477,7 +477,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         var tools = _ytDlpService.GetToolAvailability();
         ToolStatusText = tools.AllAvailable
-            ? "yt-dlp, ffmpeg и ffprobe готовы"
+            ? "yt-dlp, ffmpeg, ffprobe и JavaScript-среда готовы"
             : $"Не найдены: {string.Join(", ", GetMissingToolNames(tools))}";
     }
 
@@ -496,6 +496,11 @@ public sealed class MainViewModel : ViewModelBase
         if (!tools.FfprobeExists)
         {
             yield return "ffprobe.exe";
+        }
+
+        if (!tools.JavaScriptRuntimeExists)
+        {
+            yield return "node.exe/deno.exe";
         }
     }
 
