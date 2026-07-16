@@ -7,11 +7,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\YT.ico</ApplicationIcon>
     <AssemblyName>YtDlpDownloader</AssemblyName>
     <RootNamespace>YT_downloader</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
+    <Resource Include="..\YT.ico" Link="YT.ico" />
     <None Update="Tools\yt-dlp.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="Tools\ffmpeg.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="Tools\ffprobe.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
