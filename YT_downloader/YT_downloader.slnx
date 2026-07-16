@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="YT_downloader/YT_downloader.csproj" />
+  <Project Path="YT_downloader.Tests/YT_downloader.Tests.csproj" />
+</Solution>

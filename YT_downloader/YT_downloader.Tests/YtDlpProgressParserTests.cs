@@ -1,0 +1,80 @@
+using YT_downloader.Services;
+
+namespace YT_downloader.Tests;
+
+[TestClass]
+public sealed class YtDlpProgressParserTests
+{
+    [TestMethod]
+    public void TryParse_CustomTemplate_ParsesAllFields()
+    {
+        var parsed = YtDlpProgressParser.TryParse(
+            "download: 42.5%|3.21MiB/s|51.00MiB/120.00MiB|00:18",
+            out var progress);
+
+        Assert.IsTrue(parsed);
+        Assert.AreEqual(42.5, progress.Percent);
+        Assert.AreEqual("3.21MiB/s", progress.Speed);
+        Assert.AreEqual("51.00MiB/120.00MiB", progress.FileSize);
+        Assert.AreEqual("00:18", progress.RemainingTime);
+    }
+
+    [TestMethod]
+    public void TryParse_CustomTemplate_AcceptsCommaDecimalSeparator()
+    {
+        var parsed = YtDlpProgressParser.TryParse(
+            "download: 7,3%|950.00KiB/s|7.00MiB/95.00MiB|01:22",
+            out var progress);
+
+        Assert.IsTrue(parsed);
+        Assert.AreEqual(7.3, progress.Percent);
+    }
+
+    [TestMethod]
+    public void TryParse_StandardYtDlpLine_ParsesProgress()
+    {
+        var parsed = YtDlpProgressParser.TryParse(
+            "[download]  73.1% of 84.20MiB at 2.01MiB/s ETA 00:11",
+            out var progress);
+
+        Assert.IsTrue(parsed);
+        Assert.AreEqual(73.1, progress.Percent);
+        Assert.AreEqual("84.20MiB", progress.FileSize);
+        Assert.AreEqual("2.01MiB/s", progress.Speed);
+        Assert.AreEqual("00:11", progress.RemainingTime);
+    }
+
+    [TestMethod]
+    public void TryParse_UnknownTemplateValues_ReplacesThemWithDash()
+    {
+        var parsed = YtDlpProgressParser.TryParse(
+            "download: 0.0%|NA|0.00B/NA|N/A",
+            out var progress);
+
+        Assert.IsTrue(parsed);
+        Assert.AreEqual("—", progress.Speed);
+        Assert.AreEqual("0.00B/NA", progress.FileSize);
+        Assert.AreEqual("—", progress.RemainingTime);
+    }
+
+    [TestMethod]
+    public void TryParse_UnknownPercent_LeavesPercentEmpty()
+    {
+        var parsed = YtDlpProgressParser.TryParse(
+            "download: NA%|NA|0.00B/NA|NA",
+            out var progress);
+
+        Assert.IsTrue(parsed);
+        Assert.IsNull(progress.Percent);
+    }
+
+    [TestMethod]
+    public void TryParse_UnrelatedLine_ReturnsFalse()
+    {
+        var parsed = YtDlpProgressParser.TryParse(
+            "[Merger] Merging formats into output.mp4",
+            out _);
+
+        Assert.IsFalse(parsed);
+    }
+}
