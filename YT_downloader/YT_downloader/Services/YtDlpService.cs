@@ -10,7 +10,7 @@ namespace YT_downloader.Services;
 public sealed class YtDlpService : IYtDlpService
 {
     private const string ProgressTemplate =
-        "download:download:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._downloaded_bytes_str)s/%(progress._total_bytes_str)s|%(progress._eta_str)s";
+        "download:download:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._downloaded_bytes_str)s/%(progress._total_bytes_str)s|%(progress._eta_str)s|%(playlist_index)s|%(playlist_count)s";
     private const string YouTubeExtractorArguments =
         "youtube:player_client=tv_downgraded,android_vr";
 
@@ -42,6 +42,7 @@ public sealed class YtDlpService : IYtDlpService
 
     public async Task<VideoInfo> AnalyzeAsync(
         string url,
+        bool includePlaylist,
         IProgress<string>? log,
         CancellationToken cancellationToken)
     {
@@ -52,7 +53,7 @@ public sealed class YtDlpService : IYtDlpService
         {
             var result = await RunBufferedProcessAsync(
                 _ytDlpPath,
-                BuildAnalyzeArguments(url),
+                BuildAnalyzeArguments(url, includePlaylist),
                 cancellationToken);
 
             ReportLines(result.StandardError, log);
@@ -157,7 +158,10 @@ public sealed class YtDlpService : IYtDlpService
 
         try
         {
-            var result = await RunBufferedProcessAsync(_ytDlpPath, ["-U"], cancellationToken);
+            var result = await RunBufferedProcessAsync(
+                _ytDlpPath,
+                ["--encoding", "utf-8", "-U"],
+                cancellationToken);
             ReportLines(result.StandardOutput, log);
             ReportLines(result.StandardError, log);
 
@@ -177,11 +181,18 @@ public sealed class YtDlpService : IYtDlpService
         }
     }
 
-    internal IReadOnlyList<string> BuildAnalyzeArguments(string url)
+    internal IReadOnlyList<string> BuildAnalyzeArguments(string url, bool includePlaylist = false)
     {
-        var arguments = new List<string>();
+        var arguments = new List<string> { "--encoding", "utf-8" };
         AddYouTubeExtractionArguments(arguments);
-        arguments.AddRange(["--dump-single-json", "--skip-download", "--no-playlist", "--no-warnings", url]);
+        arguments.AddRange(["--dump-single-json", "--skip-download", "--no-warnings"]);
+        arguments.Add(includePlaylist ? "--yes-playlist" : "--no-playlist");
+        if (includePlaylist)
+        {
+            arguments.Add("--flat-playlist");
+        }
+
+        arguments.Add(url);
         return arguments;
     }
 
@@ -189,8 +200,10 @@ public sealed class YtDlpService : IYtDlpService
     {
         var arguments = new List<string>
         {
+            "--encoding",
+            "utf-8",
             "--newline",
-            "--no-playlist",
+            request.DownloadPlaylist ? "--yes-playlist" : "--no-playlist",
             "--windows-filenames",
             "--progress",
             "--progress-template",
@@ -198,7 +211,7 @@ public sealed class YtDlpService : IYtDlpService
             "--ffmpeg-location",
             _toolsDirectory,
             "--output",
-            Path.Combine(request.OutputDirectory, "%(title).180B [%(id)s].%(ext)s")
+            BuildOutputTemplate(request)
         };
         AddYouTubeExtractionArguments(arguments);
 
@@ -229,6 +242,14 @@ public sealed class YtDlpService : IYtDlpService
         arguments.Add(request.Url);
         return arguments;
     }
+
+    private static string BuildOutputTemplate(DownloadRequest request) =>
+        request.DownloadPlaylist
+            ? Path.Combine(
+                request.OutputDirectory,
+                "%(playlist_title).120B [%(playlist_id)s]",
+                "%(playlist_index)03d - %(title).160B [%(id)s].%(ext)s")
+            : Path.Combine(request.OutputDirectory, "%(title).180B [%(id)s].%(ext)s");
 
     private void AddYouTubeExtractionArguments(List<string> arguments)
     {
@@ -284,6 +305,8 @@ public sealed class YtDlpService : IYtDlpService
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+        startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+        startInfo.Environment["PYTHONUTF8"] = "1";
 
         foreach (var argument in arguments)
         {

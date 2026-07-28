@@ -5,4 +5,6 @@ public sealed record DownloadProgress(
     string Speed,
     string FileSize,
     string RemainingTime,
-    string Status = "Загрузка");
+    string Status = "Загрузка",
+    int? PlaylistIndex = null,
+    int? PlaylistCount = null);

@@ -1,0 +1,21 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="WindowBrush" Color="#F1F5F9" />
+    <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="InputBrush" Color="#F8FAFC" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="TextBrush" Color="#172033" />
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#64748B" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#0284C7" />
+    <SolidColorBrush x:Key="AccentDarkBrush" Color="#0369A1" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#DC2626" />
+    <SolidColorBrush x:Key="DangerButtonBrush" Color="#FEE2E2" />
+    <SolidColorBrush x:Key="DangerButtonTextBrush" Color="#B91C1C" />
+    <SolidColorBrush x:Key="ButtonBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="ComboBoxItemBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ComboBoxItemHighlightBrush" Color="#E0F2FE" />
+    <SolidColorBrush x:Key="ComboBoxItemSelectedBrush" Color="#BAE6FD" />
+    <SolidColorBrush x:Key="ThumbnailBackgroundBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="ProgressTrackBrush" Color="#E2E8F0" />
+</ResourceDictionary>

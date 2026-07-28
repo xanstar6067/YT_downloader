@@ -7,4 +7,8 @@ public sealed class AppSettings
     public DownloadMode Mode { get; set; } = DownloadMode.Mp4Video;
 
     public string MaximumResolution { get; set; } = "best";
+
+    public bool DownloadPlaylist { get; set; }
+
+    public bool IsLightTheme { get; set; }
 }

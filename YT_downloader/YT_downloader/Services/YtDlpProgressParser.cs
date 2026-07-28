@@ -45,21 +45,31 @@ public static class YtDlpProgressParser
     {
         progress = new DownloadProgress(null, "—", "—", "—");
         var parts = payload.Split('|', StringSplitOptions.TrimEntries);
-        if (parts.Length != 4)
+        if (parts.Length is not 4 and not 6)
         {
             return false;
         }
 
         var percentText = parts[0].Trim().TrimEnd('%').Trim();
         double? percent = TryParsePercent(percentText, out var parsedPercent) ? parsedPercent : null;
+        var playlistIndex = parts.Length == 6 ? ParseNullableInt(parts[4]) : null;
+        var playlistCount = parts.Length == 6 ? ParseNullableInt(parts[5]) : null;
 
         progress = new DownloadProgress(
             percent,
             Normalize(parts[1]),
             Normalize(parts[2]),
-            Normalize(parts[3]));
+            Normalize(parts[3]),
+            PlaylistIndex: playlistIndex,
+            PlaylistCount: playlistCount);
         return true;
     }
+
+    private static int? ParseNullableInt(string value) =>
+        int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var result)
+            && result > 0
+                ? result
+                : null;
 
     private static bool TryParsePercent(string value, out double percent)
     {

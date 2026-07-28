@@ -5,4 +5,5 @@ public sealed record DownloadRequest(
     string OutputDirectory,
     DownloadMode Mode,
     string MaximumResolution,
-    string? AudioFormatId);
+    string? AudioFormatId,
+    bool DownloadPlaylist = false);

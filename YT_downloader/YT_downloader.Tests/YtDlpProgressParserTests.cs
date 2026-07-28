@@ -31,6 +31,18 @@ public sealed class YtDlpProgressParserTests
     }
 
     [TestMethod]
+    public void TryParse_PlaylistTemplate_ParsesItemPosition()
+    {
+        var parsed = YtDlpProgressParser.TryParse(
+            "download: 28.5%|2.00MiB/s|10.00MiB/35.00MiB|00:12|3|18",
+            out var progress);
+
+        Assert.IsTrue(parsed);
+        Assert.AreEqual(3, progress.PlaylistIndex);
+        Assert.AreEqual(18, progress.PlaylistCount);
+    }
+
+    [TestMethod]
     public void TryParse_StandardYtDlpLine_ParsesProgress()
     {
         var parsed = YtDlpProgressParser.TryParse(

@@ -28,7 +28,48 @@ public sealed class YtDlpServiceArgumentTests
 
             AssertExtractionArguments(analyzeArguments, nodePath);
             AssertExtractionArguments(downloadArguments, nodePath);
+            CollectionAssert.Contains(analyzeArguments.ToArray(), "--encoding");
+            CollectionAssert.Contains(downloadArguments.ToArray(), "--encoding");
+            CollectionAssert.Contains(analyzeArguments.ToArray(), "--no-playlist");
+            CollectionAssert.Contains(downloadArguments.ToArray(), "--no-playlist");
             Assert.IsTrue(downloadArguments.Any(argument => argument.Contains("140-8", StringComparison.Ordinal)));
+        }
+        finally
+        {
+            Directory.Delete(toolsDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void PlaylistArguments_EnablePlaylistAndUseNumberedSubfolder()
+    {
+        var toolsDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(toolsDirectory);
+
+        try
+        {
+            var service = new YtDlpService(toolsDirectory);
+            var analyzeArguments = service.BuildAnalyzeArguments(
+                "https://www.youtube.com/playlist?list=test",
+                includePlaylist: true);
+            var downloadArguments = service.BuildDownloadArguments(new DownloadRequest(
+                "https://www.youtube.com/playlist?list=test",
+                toolsDirectory,
+                DownloadMode.Mp3Audio,
+                "best",
+                null,
+                DownloadPlaylist: true));
+
+            CollectionAssert.Contains(analyzeArguments.ToArray(), "--yes-playlist");
+            CollectionAssert.Contains(analyzeArguments.ToArray(), "--flat-playlist");
+            CollectionAssert.DoesNotContain(analyzeArguments.ToArray(), "--no-playlist");
+            CollectionAssert.Contains(downloadArguments.ToArray(), "--yes-playlist");
+            CollectionAssert.DoesNotContain(downloadArguments.ToArray(), "--no-playlist");
+
+            var outputIndex = downloadArguments.IndexOf("--output");
+            Assert.IsGreaterThanOrEqualTo(0, outputIndex);
+            StringAssert.Contains(downloadArguments[outputIndex + 1], "%(playlist_title).120B");
+            StringAssert.Contains(downloadArguments[outputIndex + 1], "%(playlist_index)03d");
         }
         finally
         {

@@ -4,4 +4,6 @@ public sealed record VideoInfo(
     string Title,
     string? ThumbnailUrl,
     string? DurationText,
-    IReadOnlyList<AudioTrackInfo> AudioTracks);
+    IReadOnlyList<AudioTrackInfo> AudioTracks,
+    bool IsPlaylist = false,
+    int? PlaylistEntryCount = null);

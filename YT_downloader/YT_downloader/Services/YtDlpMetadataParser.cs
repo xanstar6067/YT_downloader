@@ -10,20 +10,46 @@ public static class YtDlpMetadataParser
     {
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
+        var isPlaylist = IsPlaylist(root);
         var title = root.TryGetProperty("title", out var titleElement)
             ? titleElement.GetString()
             : null;
 
         if (string.IsNullOrWhiteSpace(title))
         {
-            throw new JsonException("В ответе yt-dlp отсутствует название видео.");
+            throw new JsonException("В ответе yt-dlp отсутствует название видео или плейлиста.");
         }
 
         return new VideoInfo(
             title,
             GetThumbnailUrl(root),
-            GetDurationText(root),
-            GetAudioTracks(root));
+            isPlaylist ? null : GetDurationText(root),
+            isPlaylist ? [] : GetAudioTracks(root),
+            isPlaylist,
+            isPlaylist ? GetPlaylistEntryCount(root) : null);
+    }
+
+    private static bool IsPlaylist(JsonElement root) =>
+        GetString(root, "_type") is "playlist" or "multi_video"
+        || root.TryGetProperty("entries", out var entriesElement)
+        && entriesElement.ValueKind == JsonValueKind.Array;
+
+    private static int? GetPlaylistEntryCount(JsonElement root)
+    {
+        if (root.TryGetProperty("playlist_count", out var countElement)
+            && countElement.TryGetInt32(out var count)
+            && count >= 0)
+        {
+            return count;
+        }
+
+        if (!root.TryGetProperty("entries", out var entriesElement)
+            || entriesElement.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        return entriesElement.EnumerateArray().Count(entry => entry.ValueKind != JsonValueKind.Null);
     }
 
     private static IReadOnlyList<AudioTrackInfo> GetAudioTracks(JsonElement root)
@@ -118,12 +144,41 @@ public static class YtDlpMetadataParser
 
     private static string? GetThumbnailUrl(JsonElement root)
     {
-        if (root.TryGetProperty("thumbnail", out var thumbnailElement))
+        var thumbnailUrl = GetDirectThumbnailUrl(root);
+        if (!string.IsNullOrWhiteSpace(thumbnailUrl))
+        {
+            return thumbnailUrl;
+        }
+
+        if (root.TryGetProperty("entries", out var entriesElement)
+            && entriesElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var entry in entriesElement.EnumerateArray())
+            {
+                if (entry.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                thumbnailUrl = GetDirectThumbnailUrl(entry);
+                if (!string.IsNullOrWhiteSpace(thumbnailUrl))
+                {
+                    return thumbnailUrl;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetDirectThumbnailUrl(JsonElement element)
+    {
+        if (element.TryGetProperty("thumbnail", out var thumbnailElement))
         {
             return thumbnailElement.GetString();
         }
 
-        if (!root.TryGetProperty("thumbnails", out var thumbnailsElement)
+        if (!element.TryGetProperty("thumbnails", out var thumbnailsElement)
             || thumbnailsElement.ValueKind != JsonValueKind.Array)
         {
             return null;

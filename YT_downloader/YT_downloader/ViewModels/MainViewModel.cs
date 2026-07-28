@@ -9,7 +9,8 @@ namespace YT_downloader.ViewModels;
 public sealed class MainViewModel : ViewModelBase
 {
     private const int MaximumLogLength = 40_000;
-    private const string EmptyVideoTitle = "Сначала проанализируйте ссылку";
+    private const string EmptyMediaTitle = "Сначала проанализируйте ссылку";
+    private const string EmptyMediaType = "ВИДЕО ИЛИ ПЛЕЙЛИСТ";
     private static readonly AudioTrackInfo AutomaticAudioTrack = new(
         null,
         null,
@@ -19,6 +20,7 @@ public sealed class MainViewModel : ViewModelBase
     private readonly IYtDlpService _ytDlpService;
     private readonly ISettingsService _settingsService;
     private readonly IUserInteractionService _userInteractionService;
+    private readonly IThemeService _themeService;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly AsyncRelayCommand _analyzeCommand;
     private readonly AsyncRelayCommand _downloadCommand;
@@ -26,15 +28,20 @@ public sealed class MainViewModel : ViewModelBase
     private readonly RelayCommand _pasteCommand;
     private readonly RelayCommand _selectFolderCommand;
     private readonly RelayCommand _cancelCommand;
+    private readonly RelayCommand _toggleThemeCommand;
     private CancellationTokenSource? _operationCancellation;
     private string _url = string.Empty;
-    private string _videoTitle = EmptyVideoTitle;
+    private string _videoTitle = EmptyMediaTitle;
+    private string _mediaTypeText = EmptyMediaType;
+    private string? _mediaDetailsText;
     private string? _thumbnailUrl;
-    private string? _durationText;
     private string? _analyzedUrl;
+    private bool _analyzedIsPlaylist;
     private string _saveFolder;
     private DownloadMode _selectedMode;
     private string _selectedResolution;
+    private bool _downloadPlaylist;
+    private bool _isLightTheme;
     private IReadOnlyList<AudioTrackInfo> _audioTrackOptions = [AutomaticAudioTrack];
     private AudioTrackInfo _selectedAudioTrack = AutomaticAudioTrack;
     private double _progressValue;
@@ -49,11 +56,13 @@ public sealed class MainViewModel : ViewModelBase
     public MainViewModel(
         IYtDlpService ytDlpService,
         ISettingsService settingsService,
-        IUserInteractionService userInteractionService)
+        IUserInteractionService userInteractionService,
+        IThemeService themeService)
     {
         _ytDlpService = ytDlpService;
         _settingsService = settingsService;
         _userInteractionService = userInteractionService;
+        _themeService = themeService;
 
         var settings = _settingsService.Load();
         _saveFolder = ResolveInitialFolder(settings.SaveFolder);
@@ -61,10 +70,14 @@ public sealed class MainViewModel : ViewModelBase
         _selectedResolution = ResolutionOptions.Any(item => item.Value == settings.MaximumResolution)
             ? settings.MaximumResolution
             : "best";
+        _downloadPlaylist = settings.DownloadPlaylist;
+        _isLightTheme = settings.IsLightTheme;
+        _themeService.ApplyTheme(_isLightTheme);
 
         _pasteCommand = new RelayCommand(PasteUrl, () => !IsBusy);
         _selectFolderCommand = new RelayCommand(SelectFolder, () => !IsBusy);
         _cancelCommand = new RelayCommand(Cancel, () => IsBusy);
+        _toggleThemeCommand = new RelayCommand(ToggleTheme);
         _analyzeCommand = new AsyncRelayCommand(AnalyzeAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(Url));
         _downloadCommand = new AsyncRelayCommand(
             DownloadAsync,
@@ -104,11 +117,7 @@ public sealed class MainViewModel : ViewModelBase
 
             if (!string.Equals(_analyzedUrl, normalized, StringComparison.Ordinal))
             {
-                _analyzedUrl = null;
-                VideoTitle = EmptyVideoTitle;
-                ThumbnailUrl = null;
-                DurationText = null;
-                SetAudioTracks([]);
+                ResetAnalysis();
             }
 
             RaiseCommandStates();
@@ -121,16 +130,22 @@ public sealed class MainViewModel : ViewModelBase
         private set => SetProperty(ref _videoTitle, value);
     }
 
+    public string MediaTypeText
+    {
+        get => _mediaTypeText;
+        private set => SetProperty(ref _mediaTypeText, value);
+    }
+
+    public string? MediaDetailsText
+    {
+        get => _mediaDetailsText;
+        private set => SetProperty(ref _mediaDetailsText, value);
+    }
+
     public string? ThumbnailUrl
     {
         get => _thumbnailUrl;
         private set => SetProperty(ref _thumbnailUrl, value);
-    }
-
-    public string? DurationText
-    {
-        get => _durationText;
-        private set => SetProperty(ref _durationText, value);
     }
 
     public string SaveFolder
@@ -168,6 +183,42 @@ public sealed class MainViewModel : ViewModelBase
             }
         }
     }
+
+    public bool DownloadPlaylist
+    {
+        get => _downloadPlaylist;
+        set
+        {
+            if (!SetProperty(ref _downloadPlaylist, value))
+            {
+                return;
+            }
+
+            ResetAnalysis();
+            PersistSettings();
+            RaiseCommandStates();
+        }
+    }
+
+    public bool IsLightTheme
+    {
+        get => _isLightTheme;
+        private set
+        {
+            if (!SetProperty(ref _isLightTheme, value))
+            {
+                return;
+            }
+
+            _themeService.ApplyTheme(value);
+            OnPropertyChanged(nameof(ThemeToggleText));
+            PersistSettings();
+        }
+    }
+
+    public string ThemeToggleText => IsLightTheme ? "Тёмная тема" : "Светлая тема";
+
+    public bool IsAudioTrackSelectionEnabled => !_analyzedIsPlaylist;
 
     public IReadOnlyList<AudioTrackInfo> AudioTrackOptions
     {
@@ -230,10 +281,13 @@ public sealed class MainViewModel : ViewModelBase
         {
             if (SetProperty(ref _isBusy, value))
             {
+                OnPropertyChanged(nameof(IsNotBusy));
                 RaiseCommandStates();
             }
         }
     }
+
+    public bool IsNotBusy => !IsBusy;
 
     public ICommand PasteCommand => _pasteCommand;
 
@@ -246,6 +300,8 @@ public sealed class MainViewModel : ViewModelBase
     public ICommand CancelCommand => _cancelCommand;
 
     public ICommand UpdateCommand => _updateCommand;
+
+    public ICommand ToggleThemeCommand => _toggleThemeCommand;
 
     public void Shutdown()
     {
@@ -292,6 +348,8 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    private void ToggleTheme() => IsLightTheme = !IsLightTheme;
+
     private async Task AnalyzeAsync()
     {
         if (!TryValidateUrl(Url, out var validationMessage))
@@ -304,20 +362,45 @@ public sealed class MainViewModel : ViewModelBase
         await ExecuteOperationAsync(async cancellationToken =>
         {
             StatusText = "Анализ ссылки…";
-            Log("Запущен анализ ссылки.");
+            Log(DownloadPlaylist
+                ? "Запущен анализ плейлиста."
+                : "Запущен анализ видео.");
             var logProgress = new Progress<string>(Log);
-            var videoInfo = await _ytDlpService.AnalyzeAsync(Url, logProgress, cancellationToken);
+            var videoInfo = await _ytDlpService.AnalyzeAsync(
+                Url,
+                DownloadPlaylist,
+                logProgress,
+                cancellationToken);
 
             VideoTitle = videoInfo.Title;
             ThumbnailUrl = videoInfo.ThumbnailUrl;
-            DurationText = videoInfo.DurationText;
+            _analyzedIsPlaylist = videoInfo.IsPlaylist;
+            MediaTypeText = videoInfo.IsPlaylist ? "НАЙДЕННЫЙ ПЛЕЙЛИСТ" : "НАЙДЕННОЕ ВИДЕО";
+            MediaDetailsText = BuildMediaDetailsText(videoInfo);
             SetAudioTracks(videoInfo.AudioTracks);
             _analyzedUrl = Url;
-            StatusText = "Ссылка успешно проанализирована";
-            Log($"Найдено видео: {videoInfo.Title}");
-            Log(videoInfo.AudioTracks.Count > 0
-                ? $"Доступно аудиодорожек: {videoInfo.AudioTracks.Count}."
-                : "Отдельные аудиодорожки не указаны; будет использован автоматический выбор.");
+            var playlistFallback = DownloadPlaylist && !videoInfo.IsPlaylist;
+            StatusText = videoInfo.IsPlaylist
+                ? "Плейлист успешно проанализирован"
+                : playlistFallback
+                    ? "Плейлист недоступен — найдено только текущее видео"
+                    : "Видео успешно проанализировано";
+            Log(videoInfo.IsPlaylist
+                ? $"Найден плейлист: {videoInfo.Title}. Элементов: {FormatEntryCount(videoInfo.PlaylistEntryCount)}."
+                : $"Найдено видео: {videoInfo.Title}");
+            if (playlistFallback)
+            {
+                Log("YouTube не передал элементы плейлиста. Приватные списки, включая «Смотреть позже», без cookies обрабатываются как одно текущее видео.");
+            }
+
+            if (!videoInfo.IsPlaylist)
+            {
+                Log(videoInfo.AudioTracks.Count > 0
+                    ? $"Доступно аудиодорожек: {videoInfo.AudioTracks.Count}."
+                    : "Отдельные аудиодорожки не указаны; будет использован автоматический выбор.");
+            }
+
+            OnPropertyChanged(nameof(IsAudioTrackSelectionEnabled));
             RaiseCommandStates();
         });
     }
@@ -345,8 +428,11 @@ public sealed class MainViewModel : ViewModelBase
                 SaveFolder,
                 SelectedMode,
                 SelectedResolution,
-                selectedAudioFormatId);
-            Log($"Аудиодорожка: {SelectedAudioTrack.DisplayName}.");
+                selectedAudioFormatId,
+                _analyzedIsPlaylist);
+            Log(_analyzedIsPlaylist
+                ? "Режим плейлиста: каждый доступный элемент будет загружен по порядку."
+                : $"Аудиодорожка: {SelectedAudioTrack.DisplayName}.");
             var progress = new Progress<DownloadProgress>(ApplyProgress);
             var logProgress = new Progress<string>(Log);
             await _ytDlpService.DownloadAsync(request, progress, logProgress, cancellationToken);
@@ -357,7 +443,9 @@ public sealed class MainViewModel : ViewModelBase
             Log("Загрузка и обработка файла успешно завершены.");
             _userInteractionService.ShowInformation(
                 "Готово",
-                $"Файл сохранён в папку:{Environment.NewLine}{SaveFolder}");
+                _analyzedIsPlaylist
+                    ? $"Плейлист сохранён в отдельную папку внутри:{Environment.NewLine}{SaveFolder}"
+                    : $"Файл сохранён в папку:{Environment.NewLine}{SaveFolder}");
         });
     }
 
@@ -448,15 +536,23 @@ public sealed class MainViewModel : ViewModelBase
 
     private void ApplyProgress(DownloadProgress progress)
     {
+        var itemPercent = progress.Percent;
         if (progress.Percent.HasValue)
         {
-            ProgressValue = progress.Percent.Value;
+            ProgressValue = progress.PlaylistIndex.HasValue && progress.PlaylistCount.HasValue
+                ? ((progress.PlaylistIndex.Value - 1) * 100 + progress.Percent.Value)
+                  / progress.PlaylistCount.Value
+                : progress.Percent.Value;
         }
 
         Speed = progress.Speed;
         FileSize = progress.FileSize;
         RemainingTime = progress.RemainingTime;
-        StatusText = $"{progress.Status}: {ProgressValue:0.0}%";
+        StatusText = progress.PlaylistIndex.HasValue && progress.PlaylistCount.HasValue
+            ? itemPercent.HasValue
+                ? $"{progress.Status}: элемент {progress.PlaylistIndex} из {progress.PlaylistCount} — {itemPercent:0.0}%"
+                : $"{progress.Status}: элемент {progress.PlaylistIndex} из {progress.PlaylistCount}"
+            : $"{progress.Status}: {ProgressValue:0.0}%";
     }
 
     private void ResetProgress()
@@ -472,6 +568,35 @@ public sealed class MainViewModel : ViewModelBase
         AudioTrackOptions = [AutomaticAudioTrack, .. tracks];
         SelectedAudioTrack = AutomaticAudioTrack;
     }
+
+    private void ResetAnalysis()
+    {
+        _analyzedUrl = null;
+        _analyzedIsPlaylist = false;
+        VideoTitle = EmptyMediaTitle;
+        MediaTypeText = EmptyMediaType;
+        MediaDetailsText = null;
+        ThumbnailUrl = null;
+        SetAudioTracks([]);
+        OnPropertyChanged(nameof(IsAudioTrackSelectionEnabled));
+    }
+
+    private static string? BuildMediaDetailsText(VideoInfo videoInfo)
+    {
+        if (videoInfo.IsPlaylist)
+        {
+            return videoInfo.PlaylistEntryCount.HasValue
+                ? $"Видео в плейлисте: {videoInfo.PlaylistEntryCount.Value}"
+                : "Количество видео будет определено при загрузке";
+        }
+
+        return string.IsNullOrWhiteSpace(videoInfo.DurationText)
+            ? null
+            : $"Длительность: {videoInfo.DurationText}";
+    }
+
+    private static string FormatEntryCount(int? entryCount) =>
+        entryCount?.ToString() ?? "будет определено при загрузке";
 
     private void RefreshToolStatus()
     {
@@ -526,7 +651,9 @@ public sealed class MainViewModel : ViewModelBase
             {
                 SaveFolder = SaveFolder,
                 Mode = SelectedMode,
-                MaximumResolution = SelectedResolution
+                MaximumResolution = SelectedResolution,
+                DownloadPlaylist = DownloadPlaylist,
+                IsLightTheme = IsLightTheme
             });
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

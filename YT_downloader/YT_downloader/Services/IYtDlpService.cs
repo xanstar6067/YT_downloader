@@ -8,6 +8,7 @@ public interface IYtDlpService
 
     Task<VideoInfo> AnalyzeAsync(
         string url,
+        bool includePlaylist,
         IProgress<string>? log,
         CancellationToken cancellationToken);
 

@@ -23,8 +23,13 @@ public partial class App : Application
         var ytDlpService = new YtDlpService(toolsDirectory);
         var settingsService = new JsonSettingsService();
         var userInteractionService = new WpfUserInteractionService();
+        var themeService = new WpfThemeService();
 
-        _mainViewModel = new MainViewModel(ytDlpService, settingsService, userInteractionService);
+        _mainViewModel = new MainViewModel(
+            ytDlpService,
+            settingsService,
+            userInteractionService,
+            themeService);
         var mainWindow = new MainWindow { DataContext = _mainViewModel };
 
         MainWindow = mainWindow;

@@ -84,4 +84,39 @@ public sealed class YtDlpMetadataParserTests
             languages,
             video.AudioTracks.Select(track => track.LanguageCode).ToArray());
     }
+
+    [TestMethod]
+    public void Parse_FlatPlaylist_ReturnsPlaylistMetadataAndFirstThumbnail()
+    {
+        const string json = """
+            {
+              "_type": "playlist",
+              "id": "PL-test",
+              "title": "Русский плейлист",
+              "playlist_count": 2,
+              "entries": [
+                {
+                  "_type": "url",
+                  "id": "one",
+                  "title": "Первое видео",
+                  "thumbnail": "https://example.test/one.jpg"
+                },
+                {
+                  "_type": "url",
+                  "id": "two",
+                  "title": "Второе видео"
+                }
+              ]
+            }
+            """;
+
+        var playlist = YtDlpMetadataParser.Parse(json);
+
+        Assert.IsTrue(playlist.IsPlaylist);
+        Assert.AreEqual("Русский плейлист", playlist.Title);
+        Assert.AreEqual(2, playlist.PlaylistEntryCount);
+        Assert.AreEqual("https://example.test/one.jpg", playlist.ThumbnailUrl);
+        Assert.IsEmpty(playlist.AudioTracks);
+        Assert.IsNull(playlist.DurationText);
+    }
 }
