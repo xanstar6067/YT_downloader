@@ -98,9 +98,7 @@
                                                     <ContentPresenter Margin="{Binding Padding, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                                                       HorizontalAlignment="Left"
                                                                       VerticalAlignment="Center"
-                                                                      Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
-                                                                      ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"
-                                                                      ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                      Content="{Binding SelectedItem.DisplayName, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                                                       IsHitTestVisible="False"
                                                                       TextElement.Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ComboBox}}" />
                                                     <Border Grid.Column="1"

@@ -4,4 +4,7 @@ public sealed record AudioTrackInfo(
     string? BestFormatId,
     string? Mp4FormatId,
     string DisplayName,
-    string? LanguageCode);
+    string? LanguageCode)
+{
+    public override string ToString() => DisplayName;
+}
