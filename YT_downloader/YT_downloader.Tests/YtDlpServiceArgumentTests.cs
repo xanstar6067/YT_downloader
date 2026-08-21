@@ -7,7 +7,7 @@ namespace YT_downloader.Tests;
 public sealed class YtDlpServiceArgumentTests
 {
     [TestMethod]
-    public void AnalyzeAndDownload_UseMultiAudioClientAndJavaScriptRuntime()
+    public void AnalyzeAndDownload_UseJavaScriptRuntimeAndLetYtDlpChooseYouTubeClients()
     {
         var toolsDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(toolsDirectory);
@@ -28,6 +28,8 @@ public sealed class YtDlpServiceArgumentTests
 
             AssertExtractionArguments(analyzeArguments, nodePath);
             AssertExtractionArguments(downloadArguments, nodePath);
+            CollectionAssert.DoesNotContain(analyzeArguments.ToArray(), "--extractor-args");
+            CollectionAssert.DoesNotContain(downloadArguments.ToArray(), "--extractor-args");
             CollectionAssert.Contains(analyzeArguments.ToArray(), "--encoding");
             CollectionAssert.Contains(downloadArguments.ToArray(), "--encoding");
             CollectionAssert.Contains(analyzeArguments.ToArray(), "--no-playlist");
@@ -77,6 +79,15 @@ public sealed class YtDlpServiceArgumentTests
         }
     }
 
+    [TestMethod]
+    public void ForbiddenDownloadDetection_RecognizesYtDlpHttp403()
+    {
+        Assert.IsTrue(YtDlpService.IsForbiddenDownloadError(
+            "ERROR: unable to download video data: HTTP Error 403: Forbidden"));
+        Assert.IsFalse(YtDlpService.IsForbiddenDownloadError(
+            "ERROR: unable to download video data: HTTP Error 404: Not Found"));
+    }
+
     private static void AssertExtractionArguments(IReadOnlyList<string> arguments, string nodePath)
     {
         var runtimeIndex = arguments.IndexOf("--js-runtimes");
@@ -84,10 +95,7 @@ public sealed class YtDlpServiceArgumentTests
 
         Assert.IsGreaterThanOrEqualTo(0, runtimeIndex);
         Assert.AreEqual($"node:{nodePath}", arguments[runtimeIndex + 1]);
-        Assert.IsGreaterThanOrEqualTo(0, extractorIndex);
-        Assert.AreEqual(
-            "youtube:player_client=tv_downgraded,android_vr",
-            arguments[extractorIndex + 1]);
+        Assert.AreEqual(-1, extractorIndex);
     }
 }
 

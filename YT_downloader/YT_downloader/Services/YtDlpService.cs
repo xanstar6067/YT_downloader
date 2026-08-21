@@ -11,8 +11,7 @@ public sealed class YtDlpService : IYtDlpService
 {
     private const string ProgressTemplate =
         "download:download:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._downloaded_bytes_str)s/%(progress._total_bytes_str)s|%(progress._eta_str)s|%(playlist_index)s|%(playlist_count)s";
-    private const string YouTubeExtractorArguments =
-        "youtube:player_client=tv_downgraded,android_vr";
+    private const int MaximumDownloadAttempts = 2;
 
     private readonly string _toolsDirectory;
     private readonly string _ytDlpPath;
@@ -104,40 +103,27 @@ public sealed class YtDlpService : IYtDlpService
             {
                 Directory.CreateDirectory(request.OutputDirectory);
                 var arguments = BuildDownloadArguments(request);
-                using var process = CreateProcess(_ytDlpPath, arguments);
-                StartAndTrack(process);
-
-                using var cancellationRegistration = cancellationToken.Register(
-                    static state => TryTerminate((Process)state!),
-                    process);
-
-                var errors = new StringBuilder();
-                var standardOutputTask = PumpReaderAsync(process.StandardOutput, line =>
-                    HandleDownloadLine(line, progress, log));
-                var standardErrorTask = PumpReaderAsync(process.StandardError, line =>
+                for (var attempt = 1; attempt <= MaximumDownloadAttempts; attempt++)
                 {
-                    if (errors.Length < 32_000)
+                    var result = await RunDownloadProcessAsync(
+                        arguments,
+                        progress,
+                        log,
+                        cancellationToken);
+
+                    if (result.ExitCode == 0)
                     {
-                        errors.AppendLine(line);
+                        return;
                     }
 
-                    HandleDownloadLine(line, progress, log);
-                });
+                    if (attempt < MaximumDownloadAttempts && IsForbiddenDownloadError(result.StandardError))
+                    {
+                        log?.Report(
+                            "Сервер вернул HTTP 403. Получаю новые ссылки на медиапотоки и повторяю загрузку…");
+                        continue;
+                    }
 
-                try
-                {
-                    await process.WaitForExitAsync(CancellationToken.None);
-                    await Task.WhenAll(standardOutputTask, standardErrorTask);
-                }
-                finally
-                {
-                    ClearActiveProcess(process);
-                }
-
-                cancellationToken.ThrowIfCancellationRequested();
-                if (process.ExitCode != 0)
-                {
-                    throw CreateProcessException(errors.ToString());
+                    throw CreateProcessException(result.StandardError);
                 }
             }
             finally
@@ -184,7 +170,7 @@ public sealed class YtDlpService : IYtDlpService
     internal IReadOnlyList<string> BuildAnalyzeArguments(string url, bool includePlaylist = false)
     {
         var arguments = new List<string> { "--encoding", "utf-8" };
-        AddYouTubeExtractionArguments(arguments);
+        AddJavaScriptRuntimeArguments(arguments);
         arguments.AddRange(["--dump-single-json", "--skip-download", "--no-warnings"]);
         arguments.Add(includePlaylist ? "--yes-playlist" : "--no-playlist");
         if (includePlaylist)
@@ -213,7 +199,7 @@ public sealed class YtDlpService : IYtDlpService
             "--output",
             BuildOutputTemplate(request)
         };
-        AddYouTubeExtractionArguments(arguments);
+        AddJavaScriptRuntimeArguments(arguments);
 
         if (request.Mode == DownloadMode.Mp3Audio)
         {
@@ -251,7 +237,7 @@ public sealed class YtDlpService : IYtDlpService
                 "%(playlist_index)03d - %(title).160B [%(id)s].%(ext)s")
             : Path.Combine(request.OutputDirectory, "%(title).180B [%(id)s].%(ext)s");
 
-    private void AddYouTubeExtractionArguments(List<string> arguments)
+    private void AddJavaScriptRuntimeArguments(List<string> arguments)
     {
         if (_javaScriptRuntime is null)
         {
@@ -259,9 +245,47 @@ public sealed class YtDlpService : IYtDlpService
         }
 
         arguments.AddRange([
-            "--js-runtimes", $"{_javaScriptRuntime.Name}:{_javaScriptRuntime.ExecutablePath}",
-            "--extractor-args", YouTubeExtractorArguments
+            "--js-runtimes", $"{_javaScriptRuntime.Name}:{_javaScriptRuntime.ExecutablePath}"
         ]);
+    }
+
+    private async Task<ProcessResult> RunDownloadProcessAsync(
+        IReadOnlyList<string> arguments,
+        IProgress<DownloadProgress>? progress,
+        IProgress<string>? log,
+        CancellationToken cancellationToken)
+    {
+        using var process = CreateProcess(_ytDlpPath, arguments);
+        StartAndTrack(process);
+
+        using var cancellationRegistration = cancellationToken.Register(
+            static state => TryTerminate((Process)state!),
+            process);
+
+        var errors = new StringBuilder();
+        var standardOutputTask = PumpReaderAsync(process.StandardOutput, line =>
+            HandleDownloadLine(line, progress, log));
+        var standardErrorTask = PumpReaderAsync(process.StandardError, line =>
+        {
+            if (errors.Length < 32_000)
+            {
+                errors.AppendLine(line);
+            }
+
+            HandleDownloadLine(line, progress, log);
+        });
+
+        try
+        {
+            await process.WaitForExitAsync(CancellationToken.None);
+            await Task.WhenAll(standardOutputTask, standardErrorTask);
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ProcessResult(process.ExitCode, string.Empty, errors.ToString());
+        }
+        finally
+        {
+            ClearActiveProcess(process);
+        }
     }
 
     private async Task<ProcessResult> RunBufferedProcessAsync(
@@ -464,6 +488,14 @@ public sealed class YtDlpService : IYtDlpService
                 details);
         }
 
+        if (IsForbiddenDownloadError(details))
+        {
+            return new YtDlpException(
+                YtDlpErrorKind.Network,
+                "Сервер отклонил загрузку (HTTP 403). Обновите yt-dlp и повторите попытку; если ошибка сохраняется, отключите VPN или прокси.",
+                details);
+        }
+
         if (ContainsAny(
                 details,
                 "Unable to download",
@@ -493,6 +525,9 @@ public sealed class YtDlpService : IYtDlpService
             "yt-dlp завершился с ошибкой. Подробности доступны в журнале.",
             details);
     }
+
+    internal static bool IsForbiddenDownloadError(string details) =>
+        ContainsAny(details, "HTTP Error 403", "HTTP 403: Forbidden");
 
     private static bool ContainsAny(string source, params string[] values) =>
         values.Any(value => source.Contains(value, StringComparison.OrdinalIgnoreCase));
