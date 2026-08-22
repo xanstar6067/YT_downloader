@@ -45,7 +45,7 @@ public static class YtDlpProgressParser
     {
         progress = new DownloadProgress(null, "—", "—", "—");
         var parts = payload.Split('|', StringSplitOptions.TrimEntries);
-        if (parts.Length == 12)
+        if (parts.Length is 12 or 14)
         {
             return TryParseDetailedTemplate(parts, out progress);
         }
@@ -89,13 +89,21 @@ public static class YtDlpProgressParser
             DownloadedBytes: ParseNullableLong(parts[2]),
             TotalBytes: ParseNullableLong(parts[3]),
             VideoCodec: NormalizeOptional(parts[10]),
-            AudioCodec: NormalizeOptional(parts[11]));
+            AudioCodec: NormalizeOptional(parts[11]),
+            FragmentIndex: parts.Count == 14 ? ParseNullableNonNegativeInt(parts[12]) : null,
+            FragmentCount: parts.Count == 14 ? ParseNullableInt(parts[13]) : null);
         return true;
     }
 
     private static int? ParseNullableInt(string value) =>
         int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var result)
             && result > 0
+                ? result
+                : null;
+
+    private static int? ParseNullableNonNegativeInt(string value) =>
+        int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var result)
+            && result >= 0
                 ? result
                 : null;
 

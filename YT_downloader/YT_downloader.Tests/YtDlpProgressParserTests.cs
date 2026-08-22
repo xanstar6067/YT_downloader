@@ -62,6 +62,18 @@ public sealed class YtDlpProgressParserTests
     }
 
     [TestMethod]
+    public void TryParse_FragmentedTemplate_ParsesFragmentPosition()
+    {
+        var parsed = YtDlpProgressParser.TryParse(
+            "download:video-id|616|712|76896|0.9%|1KiB/s|712B/N/A|N/A|NA|NA|vp9|none|1|54",
+            out var progress);
+
+        Assert.IsTrue(parsed);
+        Assert.AreEqual(1, progress.FragmentIndex);
+        Assert.AreEqual(54, progress.FragmentCount);
+    }
+
+    [TestMethod]
     public void TryParse_StandardYtDlpLine_ParsesProgress()
     {
         var parsed = YtDlpProgressParser.TryParse(

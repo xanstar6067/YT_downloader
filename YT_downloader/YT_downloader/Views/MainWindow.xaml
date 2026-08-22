@@ -225,6 +225,7 @@
                 </Grid.RowDefinitions>
                 <ProgressBar Height="10"
                              Maximum="100"
+                             IsIndeterminate="{Binding IsProgressIndeterminate, Mode=OneWay}"
                              Value="{Binding ProgressValue, Mode=OneWay}"
                              Background="{DynamicResource ProgressTrackBrush}"
                              Foreground="{DynamicResource AccentBrush}" />

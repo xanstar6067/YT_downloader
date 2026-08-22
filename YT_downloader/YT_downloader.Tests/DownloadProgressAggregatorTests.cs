@@ -7,14 +7,9 @@ namespace YT_downloader.Tests;
 public sealed class DownloadProgressAggregatorTests
 {
     [TestMethod]
-    public void Aggregate_SeparateStreams_UsesByteWeightedMonotonicPercent()
+    public void Aggregate_SeparateStreams_UsesTwoMonotonicStages()
     {
         var aggregator = new DownloadProgressAggregator(DownloadMode.Mp4Video);
-        aggregator.RegisterPlan(new YtDlpDownloadPlan(
-            "video-id",
-            [new("video", 900), new("audio", 100)],
-            null,
-            null));
 
         var videoFinished = aggregator.Aggregate(CreateProgress(
             mediaId: "video-id",
@@ -29,8 +24,8 @@ public sealed class DownloadProgressAggregatorTests
             videoCodec: "none",
             audioCodec: "mp4a"));
 
-        Assert.AreEqual(90, videoFinished.Percent);
-        Assert.AreEqual(92, audioStarted.Percent);
+        Assert.AreEqual(50, videoFinished.Percent);
+        Assert.AreEqual(60, audioStarted.Percent);
         Assert.AreEqual("Загрузка видео", videoFinished.Status);
         Assert.AreEqual("Загрузка аудио", audioStarted.Status);
     }
@@ -39,11 +34,6 @@ public sealed class DownloadProgressAggregatorTests
     public void Aggregate_PercentEstimateMovesBackward_KeepsPreviousValue()
     {
         var aggregator = new DownloadProgressAggregator(DownloadMode.Mp3Audio);
-        aggregator.RegisterPlan(new YtDlpDownloadPlan(
-            "audio-id",
-            [new("audio", 1000)],
-            null,
-            null));
 
         var first = aggregator.Aggregate(CreateProgress("audio-id", "audio", 60, "none", "opus"));
         var lowerEstimate = aggregator.Aggregate(CreateProgress("audio-id", "audio", 45, "none", "opus"));
@@ -65,34 +55,43 @@ public sealed class DownloadProgressAggregatorTests
     }
 
     [TestMethod]
-    public void DownloadPlanParser_UsesRequestedFormatsAndSizes()
+    public void Aggregate_OCgr08Q7A6cHlsBootstrap_DoesNotJumpToHalf()
     {
-        var parsed = YtDlpDownloadPlanParser.TryParse(
-            "download-plan:video-id|137+140|1000|137|900|140|100|3|12",
-            out var plan);
+        var aggregator = new DownloadProgressAggregator(DownloadMode.Mp4Video);
+        var bootstrap = aggregator.Aggregate(CreateProgress(
+            "id",
+            "616",
+            100,
+            "vp9",
+            "none") with
+        {
+            FragmentIndex = 0,
+            FragmentCount = 54
+        });
+        var firstFragment = aggregator.Aggregate(CreateProgress(
+            "id",
+            "616",
+            0.9,
+            "vp9",
+            "none") with
+        {
+            FragmentIndex = 1,
+            FragmentCount = 54
+        });
+        var middle = aggregator.Aggregate(CreateProgress(
+            "id",
+            "616",
+            57.4,
+            "vp9",
+            "none") with
+        {
+            FragmentIndex = 30,
+            FragmentCount = 54
+        });
 
-        Assert.IsTrue(parsed);
-        Assert.AreEqual("video-id", plan.MediaId);
-        Assert.HasCount(2, plan.Formats);
-        Assert.AreEqual("137", plan.Formats[0].FormatId);
-        Assert.AreEqual(900, plan.Formats[0].FileSize);
-        Assert.AreEqual("140", plan.Formats[1].FormatId);
-        Assert.AreEqual(100, plan.Formats[1].FileSize);
-        Assert.AreEqual(3, plan.PlaylistIndex);
-        Assert.AreEqual(12, plan.PlaylistCount);
-    }
-
-    [TestMethod]
-    public void DownloadPlanParser_UsesCombinedFormatWhenNoRequestedFormatsExist()
-    {
-        var parsed = YtDlpDownloadPlanParser.TryParse(
-            "download-plan:video-id|18|2500|NA|NA|NA|NA|NA|NA",
-            out var plan);
-
-        Assert.IsTrue(parsed);
-        Assert.HasCount(1, plan.Formats);
-        Assert.AreEqual("18", plan.Formats[0].FormatId);
-        Assert.AreEqual(2500, plan.Formats[0].FileSize);
+        Assert.AreEqual(0, bootstrap.Percent);
+        Assert.AreEqual(100d / 54 / 2, firstFragment.Percent!.Value, 0.001);
+        Assert.AreEqual(30d / 54 * 50, middle.Percent!.Value, 0.001);
     }
 
     private static DownloadProgress CreateProgress(

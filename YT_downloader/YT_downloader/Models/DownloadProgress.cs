@@ -13,4 +13,6 @@ public sealed record DownloadProgress(
     long? DownloadedBytes = null,
     long? TotalBytes = null,
     string? VideoCodec = null,
-    string? AudioCodec = null);
+    string? AudioCodec = null,
+    int? FragmentIndex = null,
+    int? FragmentCount = null);

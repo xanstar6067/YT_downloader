@@ -46,6 +46,7 @@ public sealed class MainViewModel : ViewModelBase
     private IReadOnlyList<AudioTrackInfo> _audioTrackOptions = [AutomaticAudioTrack];
     private AudioTrackInfo _selectedAudioTrack = AutomaticAudioTrack;
     private double _progressValue;
+    private bool _isProgressIndeterminate;
     private string _speed = "—";
     private string _fileSize = "—";
     private string _remainingTime = "—";
@@ -270,6 +271,12 @@ public sealed class MainViewModel : ViewModelBase
         private set => SetProperty(ref _progressValue, Math.Clamp(value, 0, 100));
     }
 
+    public bool IsProgressIndeterminate
+    {
+        get => _isProgressIndeterminate;
+        private set => SetProperty(ref _isProgressIndeterminate, value);
+    }
+
     public string Speed
     {
         get => _speed;
@@ -450,6 +457,7 @@ public sealed class MainViewModel : ViewModelBase
         {
             Directory.CreateDirectory(SaveFolder);
             ResetProgress();
+            IsProgressIndeterminate = true;
             StatusText = "Подготовка загрузки…";
             Log($"Загрузка начата. Папка: {SaveFolder}");
 
@@ -478,6 +486,7 @@ public sealed class MainViewModel : ViewModelBase
             var logProgress = new Progress<string>(Log);
             await _ytDlpService.DownloadAsync(request, progress, logProgress, cancellationToken);
 
+            IsProgressIndeterminate = false;
             ProgressValue = 100;
             RemainingTime = "Готово";
             StatusText = "Загрузка завершена";
@@ -556,6 +565,7 @@ public sealed class MainViewModel : ViewModelBase
         }
         finally
         {
+            IsProgressIndeterminate = false;
             _operationCancellation.Dispose();
             _operationCancellation = null;
             IsBusy = false;
@@ -580,10 +590,15 @@ public sealed class MainViewModel : ViewModelBase
         var itemPercent = progress.Percent;
         if (progress.Percent.HasValue)
         {
+            IsProgressIndeterminate = false;
             ProgressValue = progress.PlaylistIndex.HasValue && progress.PlaylistCount.HasValue
                 ? ((progress.PlaylistIndex.Value - 1) * 100 + progress.Percent.Value)
                   / progress.PlaylistCount.Value
                 : progress.Percent.Value;
+        }
+        else
+        {
+            IsProgressIndeterminate = true;
         }
 
         Speed = progress.Speed;
@@ -593,12 +608,15 @@ public sealed class MainViewModel : ViewModelBase
             ? itemPercent.HasValue
                 ? $"{progress.Status}: элемент {progress.PlaylistIndex} из {progress.PlaylistCount} — {itemPercent:0.0}%"
                 : $"{progress.Status}: элемент {progress.PlaylistIndex} из {progress.PlaylistCount}"
-            : $"{progress.Status}: {ProgressValue:0.0}%";
+            : itemPercent.HasValue
+                ? $"{progress.Status}: {ProgressValue:0.0}%"
+                : $"{progress.Status}…";
     }
 
     private void ResetProgress()
     {
         ProgressValue = 0;
+        IsProgressIndeterminate = false;
         Speed = "—";
         FileSize = "—";
         RemainingTime = "—";

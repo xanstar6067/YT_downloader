@@ -7,15 +7,6 @@ internal sealed class DownloadProgressAggregator(DownloadMode mode)
     private readonly object _sync = new();
     private readonly Dictionary<string, ItemState> _items = new(StringComparer.Ordinal);
 
-    public void RegisterPlan(YtDlpDownloadPlan plan)
-    {
-        lock (_sync)
-        {
-            GetOrCreateItem(BuildItemKey(plan.MediaId, plan.PlaylistIndex))
-                .SetPlan(plan.Formats);
-        }
-    }
-
     public DownloadProgress Aggregate(DownloadProgress progress)
     {
         lock (_sync)
@@ -64,78 +55,38 @@ internal sealed class DownloadProgressAggregator(DownloadMode mode)
 
     private sealed class ItemState
     {
-        private readonly Dictionary<string, FormatState> _formats = new(StringComparer.Ordinal);
         private readonly List<string> _fallbackFormatOrder = [];
-        private bool _hasExplicitPlan;
         private double? _lastPercent;
-
-        public void SetPlan(IReadOnlyList<YtDlpPlannedFormat> formats)
-        {
-            _hasExplicitPlan = true;
-            foreach (var format in formats)
-            {
-                if (_formats.TryGetValue(format.FormatId, out var state))
-                {
-                    state.FileSize = format.FileSize ?? state.FileSize;
-                }
-                else
-                {
-                    _formats.Add(format.FormatId, new FormatState(format.FileSize));
-                }
-            }
-        }
 
         public double? Aggregate(DownloadProgress progress, DownloadMode mode)
         {
-            if (!progress.Percent.HasValue)
+            var effectivePercent = GetEffectiveStreamPercent(progress);
+            if (!effectivePercent.HasValue)
             {
                 return _lastPercent;
             }
 
-            var rawFraction = Math.Clamp(progress.Percent.Value / 100, 0, 1);
             if (string.IsNullOrWhiteSpace(progress.FormatId))
             {
-                return KeepMonotonic(progress.Percent.Value);
+                return KeepMonotonic(effectivePercent.Value);
             }
 
-            var formatId = progress.FormatId;
-            if (!_formats.TryGetValue(formatId, out var format))
-            {
-                format = new FormatState(progress.TotalBytes);
-                _formats.Add(formatId, format);
-            }
-
-            format.FileSize ??= progress.TotalBytes;
-            format.Fraction = Math.Max(format.Fraction, rawFraction);
-
-            double aggregatedPercent;
-            if (_hasExplicitPlan)
-            {
-                aggregatedPercent = CalculatePlannedFraction() * 100;
-            }
-            else
-            {
-                aggregatedPercent = CalculateFallbackPercent(progress, mode, rawFraction);
-            }
-
-            return KeepMonotonic(aggregatedPercent);
+            var rawFraction = Math.Clamp(effectivePercent.Value / 100, 0, 1);
+            return KeepMonotonic(CalculateFallbackPercent(progress, mode, rawFraction));
         }
 
-        private double CalculatePlannedFraction()
+        private static double? GetEffectiveStreamPercent(DownloadProgress progress)
         {
-            var plannedFormats = _formats.Values.ToArray();
-            if (plannedFormats.Length == 0)
+            if (progress.FragmentIndex.HasValue && progress.FragmentCount is > 0)
             {
-                return 0;
+                var fragmentIndex = Math.Clamp(
+                    progress.FragmentIndex.Value,
+                    0,
+                    progress.FragmentCount.Value);
+                return fragmentIndex * 100d / progress.FragmentCount.Value;
             }
 
-            if (plannedFormats.All(format => format.FileSize is > 0))
-            {
-                var totalSize = plannedFormats.Sum(format => (double)format.FileSize!.Value);
-                return plannedFormats.Sum(format => format.FileSize!.Value * format.Fraction) / totalSize;
-            }
-
-            return plannedFormats.Average(format => format.Fraction);
+            return progress.Percent;
         }
 
         private double CalculateFallbackPercent(
@@ -143,9 +94,7 @@ internal sealed class DownloadProgressAggregator(DownloadMode mode)
             DownloadMode mode,
             double rawFraction)
         {
-            var isSeparateMediaStream = IsCodecPresent(progress.VideoCodec)
-                                        ^ IsCodecPresent(progress.AudioCodec);
-            if (mode != DownloadMode.Mp4Video || !isSeparateMediaStream)
+            if (mode != DownloadMode.Mp4Video)
             {
                 return rawFraction * 100;
             }
@@ -166,11 +115,5 @@ internal sealed class DownloadProgressAggregator(DownloadMode mode)
             return _lastPercent.Value;
         }
 
-        private sealed class FormatState(long? fileSize)
-        {
-            public long? FileSize { get; set; } = fileSize;
-
-            public double Fraction { get; set; }
-        }
     }
 }

@@ -34,8 +34,7 @@ public sealed class YtDlpServiceArgumentTests
             CollectionAssert.Contains(downloadArguments.ToArray(), "--encoding");
             CollectionAssert.Contains(analyzeArguments.ToArray(), "--no-playlist");
             CollectionAssert.Contains(downloadArguments.ToArray(), "--no-playlist");
-            CollectionAssert.Contains(downloadArguments.ToArray(), "--print");
-            CollectionAssert.Contains(downloadArguments.ToArray(), "--no-quiet");
+            CollectionAssert.DoesNotContain(downloadArguments.ToArray(), "--print");
             Assert.IsTrue(downloadArguments.Any(argument => argument.Contains("140-8", StringComparison.Ordinal)));
         }
         finally

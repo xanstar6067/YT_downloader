@@ -10,9 +10,7 @@ namespace YT_downloader.Services;
 public sealed class YtDlpService : IYtDlpService
 {
     private const string ProgressTemplate =
-        "download:download:%(info.id)s|%(info.format_id)s|%(progress.downloaded_bytes)s|%(progress.total_bytes,progress.total_bytes_estimate)s|%(progress._percent_str)s|%(progress._speed_str)s|%(progress._downloaded_bytes_str)s/%(progress._total_bytes_str)s|%(progress._eta_str)s|%(info.playlist_index)s|%(info.playlist_count)s|%(info.vcodec)s|%(info.acodec)s";
-    private const string DownloadPlanTemplate =
-        "before_dl:download-plan:%(id)s|%(format_id)s|%(filesize,filesize_approx)s|%(requested_formats.0.format_id)s|%(requested_formats.0.filesize,requested_formats.0.filesize_approx)s|%(requested_formats.1.format_id)s|%(requested_formats.1.filesize,requested_formats.1.filesize_approx)s|%(playlist_index)s|%(playlist_count)s";
+        "download:download:%(info.id)s|%(info.format_id)s|%(progress.downloaded_bytes)s|%(progress.total_bytes,progress.total_bytes_estimate)s|%(progress._percent_str)s|%(progress._speed_str)s|%(progress._downloaded_bytes_str)s/%(progress._total_bytes_str)s|%(progress._eta_str)s|%(info.playlist_index)s|%(info.playlist_count)s|%(info.vcodec)s|%(info.acodec)s|%(progress.fragment_index)s|%(progress.fragment_count)s";
     private const int MaximumDownloadAttempts = 2;
 
     private readonly string _toolsDirectory;
@@ -203,9 +201,6 @@ public sealed class YtDlpService : IYtDlpService
             "--progress",
             "--progress-template",
             ProgressTemplate,
-            "--print",
-            DownloadPlanTemplate,
-            "--no-quiet",
             "--ffmpeg-location",
             _toolsDirectory,
             "--output",
@@ -429,12 +424,6 @@ public sealed class YtDlpService : IYtDlpService
         IProgress<DownloadProgress>? progress,
         IProgress<string>? log)
     {
-        if (YtDlpDownloadPlanParser.TryParse(line, out var plan))
-        {
-            progressAggregator.RegisterPlan(plan);
-            return;
-        }
-
         if (YtDlpProgressParser.TryParse(line, out var parsedProgress))
         {
             progress?.Report(progressAggregator.Aggregate(parsedProgress));
