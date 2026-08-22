@@ -43,6 +43,25 @@ public sealed class YtDlpProgressParserTests
     }
 
     [TestMethod]
+    public void TryParse_DetailedTemplate_ParsesStreamIdentityAndBytes()
+    {
+        var parsed = YtDlpProgressParser.TryParse(
+            "download:video-id|137|5242880|10485760| 50.0%|2.00MiB/s|5.00MiB/10.00MiB|00:03|2|7|avc1.640028|none",
+            out var progress);
+
+        Assert.IsTrue(parsed);
+        Assert.AreEqual(50.0, progress.Percent);
+        Assert.AreEqual("video-id", progress.MediaId);
+        Assert.AreEqual("137", progress.FormatId);
+        Assert.AreEqual(5_242_880, progress.DownloadedBytes);
+        Assert.AreEqual(10_485_760, progress.TotalBytes);
+        Assert.AreEqual(2, progress.PlaylistIndex);
+        Assert.AreEqual(7, progress.PlaylistCount);
+        Assert.AreEqual("avc1.640028", progress.VideoCodec);
+        Assert.AreEqual("none", progress.AudioCodec);
+    }
+
+    [TestMethod]
     public void TryParse_StandardYtDlpLine_ParsesProgress()
     {
         var parsed = YtDlpProgressParser.TryParse(

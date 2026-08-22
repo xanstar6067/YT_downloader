@@ -40,6 +40,7 @@ public sealed class MainViewModel : ViewModelBase
     private string _saveFolder;
     private DownloadMode _selectedMode;
     private string _selectedResolution;
+    private BrowserCookieSource _selectedBrowserCookieSource;
     private bool _downloadPlaylist;
     private bool _isLightTheme;
     private IReadOnlyList<AudioTrackInfo> _audioTrackOptions = [AutomaticAudioTrack];
@@ -70,6 +71,9 @@ public sealed class MainViewModel : ViewModelBase
         _selectedResolution = ResolutionOptions.Any(item => item.Value == settings.MaximumResolution)
             ? settings.MaximumResolution
             : "best";
+        _selectedBrowserCookieSource = Enum.IsDefined(settings.BrowserCookieSource)
+            ? settings.BrowserCookieSource
+            : BrowserCookieSource.None;
         _downloadPlaylist = settings.DownloadPlaylist;
         _isLightTheme = settings.IsLightTheme;
         _themeService.ApplyTheme(_isLightTheme);
@@ -102,6 +106,18 @@ public sealed class MainViewModel : ViewModelBase
         new("До 1080p", "1080"),
         new("До 720p", "720"),
         new("До 480p", "480")
+    ];
+
+    public IReadOnlyList<ChoiceItem<BrowserCookieSource>> BrowserCookieOptions { get; } =
+    [
+        new("Не использовать", BrowserCookieSource.None),
+        new("Microsoft Edge", BrowserCookieSource.Edge),
+        new("Google Chrome", BrowserCookieSource.Chrome),
+        new("Mozilla Firefox", BrowserCookieSource.Firefox),
+        new("Brave", BrowserCookieSource.Brave),
+        new("Chromium", BrowserCookieSource.Chromium),
+        new("Vivaldi", BrowserCookieSource.Vivaldi),
+        new("Opera", BrowserCookieSource.Opera)
     ];
 
     public string Url
@@ -181,6 +197,22 @@ public sealed class MainViewModel : ViewModelBase
             {
                 PersistSettings();
             }
+        }
+    }
+
+    public BrowserCookieSource SelectedBrowserCookieSource
+    {
+        get => _selectedBrowserCookieSource;
+        set
+        {
+            if (!SetProperty(ref _selectedBrowserCookieSource, value))
+            {
+                return;
+            }
+
+            ResetAnalysis();
+            PersistSettings();
+            RaiseCommandStates();
         }
     }
 
@@ -369,6 +401,7 @@ public sealed class MainViewModel : ViewModelBase
             var videoInfo = await _ytDlpService.AnalyzeAsync(
                 Url,
                 DownloadPlaylist,
+                SelectedBrowserCookieSource,
                 logProgress,
                 cancellationToken);
 
@@ -429,10 +462,18 @@ public sealed class MainViewModel : ViewModelBase
                 SelectedMode,
                 SelectedResolution,
                 selectedAudioFormatId,
-                _analyzedIsPlaylist);
+                _analyzedIsPlaylist,
+                SelectedBrowserCookieSource);
             Log(_analyzedIsPlaylist
                 ? "Режим плейлиста: каждый доступный элемент будет загружен по порядку."
                 : $"Аудиодорожка: {SelectedAudioTrack.DisplayName}.");
+            if (SelectedBrowserCookieSource != BrowserCookieSource.None)
+            {
+                var browserName = BrowserCookieOptions
+                    .First(option => option.Value == SelectedBrowserCookieSource)
+                    .DisplayName;
+                Log($"Для доступа используется сессия браузера: {browserName}.");
+            }
             var progress = new Progress<DownloadProgress>(ApplyProgress);
             var logProgress = new Progress<string>(Log);
             await _ytDlpService.DownloadAsync(request, progress, logProgress, cancellationToken);
@@ -652,6 +693,7 @@ public sealed class MainViewModel : ViewModelBase
                 SaveFolder = SaveFolder,
                 Mode = SelectedMode,
                 MaximumResolution = SelectedResolution,
+                BrowserCookieSource = SelectedBrowserCookieSource,
                 DownloadPlaylist = DownloadPlaylist,
                 IsLightTheme = IsLightTheme
             });

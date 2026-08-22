@@ -10,7 +10,9 @@ namespace YT_downloader.Services;
 public sealed class YtDlpService : IYtDlpService
 {
     private const string ProgressTemplate =
-        "download:download:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._downloaded_bytes_str)s/%(progress._total_bytes_str)s|%(progress._eta_str)s|%(playlist_index)s|%(playlist_count)s";
+        "download:download:%(info.id)s|%(info.format_id)s|%(progress.downloaded_bytes)s|%(progress.total_bytes,progress.total_bytes_estimate)s|%(progress._percent_str)s|%(progress._speed_str)s|%(progress._downloaded_bytes_str)s/%(progress._total_bytes_str)s|%(progress._eta_str)s|%(info.playlist_index)s|%(info.playlist_count)s|%(info.vcodec)s|%(info.acodec)s";
+    private const string DownloadPlanTemplate =
+        "before_dl:download-plan:%(id)s|%(format_id)s|%(filesize,filesize_approx)s|%(requested_formats.0.format_id)s|%(requested_formats.0.filesize,requested_formats.0.filesize_approx)s|%(requested_formats.1.format_id)s|%(requested_formats.1.filesize,requested_formats.1.filesize_approx)s|%(playlist_index)s|%(playlist_count)s";
     private const int MaximumDownloadAttempts = 2;
 
     private readonly string _toolsDirectory;
@@ -42,6 +44,7 @@ public sealed class YtDlpService : IYtDlpService
     public async Task<VideoInfo> AnalyzeAsync(
         string url,
         bool includePlaylist,
+        BrowserCookieSource browserCookieSource,
         IProgress<string>? log,
         CancellationToken cancellationToken)
     {
@@ -52,7 +55,7 @@ public sealed class YtDlpService : IYtDlpService
         {
             var result = await RunBufferedProcessAsync(
                 _ytDlpPath,
-                BuildAnalyzeArguments(url, includePlaylist),
+                BuildAnalyzeArguments(url, includePlaylist, browserCookieSource),
                 cancellationToken);
 
             ReportLines(result.StandardError, log);
@@ -103,10 +106,12 @@ public sealed class YtDlpService : IYtDlpService
             {
                 Directory.CreateDirectory(request.OutputDirectory);
                 var arguments = BuildDownloadArguments(request);
+                var progressAggregator = new DownloadProgressAggregator(request.Mode);
                 for (var attempt = 1; attempt <= MaximumDownloadAttempts; attempt++)
                 {
                     var result = await RunDownloadProcessAsync(
                         arguments,
+                        progressAggregator,
                         progress,
                         log,
                         cancellationToken);
@@ -167,10 +172,14 @@ public sealed class YtDlpService : IYtDlpService
         }
     }
 
-    internal IReadOnlyList<string> BuildAnalyzeArguments(string url, bool includePlaylist = false)
+    internal IReadOnlyList<string> BuildAnalyzeArguments(
+        string url,
+        bool includePlaylist = false,
+        BrowserCookieSource browserCookieSource = BrowserCookieSource.None)
     {
         var arguments = new List<string> { "--encoding", "utf-8" };
         AddJavaScriptRuntimeArguments(arguments);
+        AddBrowserCookieArguments(arguments, browserCookieSource);
         arguments.AddRange(["--dump-single-json", "--skip-download", "--no-warnings"]);
         arguments.Add(includePlaylist ? "--yes-playlist" : "--no-playlist");
         if (includePlaylist)
@@ -194,12 +203,16 @@ public sealed class YtDlpService : IYtDlpService
             "--progress",
             "--progress-template",
             ProgressTemplate,
+            "--print",
+            DownloadPlanTemplate,
+            "--no-quiet",
             "--ffmpeg-location",
             _toolsDirectory,
             "--output",
             BuildOutputTemplate(request)
         };
         AddJavaScriptRuntimeArguments(arguments);
+        AddBrowserCookieArguments(arguments, request.BrowserCookieSource);
 
         if (request.Mode == DownloadMode.Mp3Audio)
         {
@@ -249,8 +262,32 @@ public sealed class YtDlpService : IYtDlpService
         ]);
     }
 
+    private static void AddBrowserCookieArguments(
+        List<string> arguments,
+        BrowserCookieSource browserCookieSource)
+    {
+        var browserName = browserCookieSource switch
+        {
+            BrowserCookieSource.None => null,
+            BrowserCookieSource.Edge => "edge",
+            BrowserCookieSource.Chrome => "chrome",
+            BrowserCookieSource.Firefox => "firefox",
+            BrowserCookieSource.Brave => "brave",
+            BrowserCookieSource.Chromium => "chromium",
+            BrowserCookieSource.Vivaldi => "vivaldi",
+            BrowserCookieSource.Opera => "opera",
+            _ => null
+        };
+
+        if (browserName is not null)
+        {
+            arguments.AddRange(["--cookies-from-browser", browserName]);
+        }
+    }
+
     private async Task<ProcessResult> RunDownloadProcessAsync(
         IReadOnlyList<string> arguments,
+        DownloadProgressAggregator progressAggregator,
         IProgress<DownloadProgress>? progress,
         IProgress<string>? log,
         CancellationToken cancellationToken)
@@ -264,7 +301,7 @@ public sealed class YtDlpService : IYtDlpService
 
         var errors = new StringBuilder();
         var standardOutputTask = PumpReaderAsync(process.StandardOutput, line =>
-            HandleDownloadLine(line, progress, log));
+            HandleDownloadLine(line, progressAggregator, progress, log));
         var standardErrorTask = PumpReaderAsync(process.StandardError, line =>
         {
             if (errors.Length < 32_000)
@@ -272,7 +309,7 @@ public sealed class YtDlpService : IYtDlpService
                 errors.AppendLine(line);
             }
 
-            HandleDownloadLine(line, progress, log);
+            HandleDownloadLine(line, progressAggregator, progress, log);
         });
 
         try
@@ -388,12 +425,19 @@ public sealed class YtDlpService : IYtDlpService
 
     private static void HandleDownloadLine(
         string line,
+        DownloadProgressAggregator progressAggregator,
         IProgress<DownloadProgress>? progress,
         IProgress<string>? log)
     {
+        if (YtDlpDownloadPlanParser.TryParse(line, out var plan))
+        {
+            progressAggregator.RegisterPlan(plan);
+            return;
+        }
+
         if (YtDlpProgressParser.TryParse(line, out var parsedProgress))
         {
-            progress?.Report(parsedProgress);
+            progress?.Report(progressAggregator.Aggregate(parsedProgress));
         }
         else
         {
@@ -472,6 +516,14 @@ public sealed class YtDlpService : IYtDlpService
                 details);
         }
 
+        if (IsBotVerificationError(details))
+        {
+            return new YtDlpException(
+                YtDlpErrorKind.BotVerification,
+                "YouTube запросил проверку CAPTCHA. Откройте видео в обычном окне браузера, пройдите проверку, выберите этот браузер в поле «Сессия браузера» и повторите анализ.",
+                details);
+        }
+
         if (ContainsAny(
                 details,
                 "Video unavailable",
@@ -528,6 +580,14 @@ public sealed class YtDlpService : IYtDlpService
 
     internal static bool IsForbiddenDownloadError(string details) =>
         ContainsAny(details, "HTTP Error 403", "HTTP 403: Forbidden");
+
+    internal static bool IsBotVerificationError(string details) =>
+        ContainsAny(
+            details,
+            "Sign in to confirm you're not a bot",
+            "Sign in to confirm you’re not a bot",
+            "confirm you are not a bot",
+            "Use --cookies-from-browser or --cookies for the authentication");
 
     private static bool ContainsAny(string source, params string[] values) =>
         values.Any(value => source.Contains(value, StringComparison.OrdinalIgnoreCase));

@@ -6,6 +6,7 @@ public enum YtDlpErrorKind
     ToolMissing,
     InvalidUrl,
     Network,
+    BotVerification,
     VideoUnavailable,
     FfmpegMissing,
     AlreadyRunning

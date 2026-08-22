@@ -6,4 +6,5 @@ public sealed record DownloadRequest(
     DownloadMode Mode,
     string MaximumResolution,
     string? AudioFormatId,
-    bool DownloadPlaylist = false);
+    bool DownloadPlaylist = false,
+    BrowserCookieSource BrowserCookieSource = BrowserCookieSource.None);

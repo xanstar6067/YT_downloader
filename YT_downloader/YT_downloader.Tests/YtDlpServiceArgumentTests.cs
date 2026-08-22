@@ -34,6 +34,8 @@ public sealed class YtDlpServiceArgumentTests
             CollectionAssert.Contains(downloadArguments.ToArray(), "--encoding");
             CollectionAssert.Contains(analyzeArguments.ToArray(), "--no-playlist");
             CollectionAssert.Contains(downloadArguments.ToArray(), "--no-playlist");
+            CollectionAssert.Contains(downloadArguments.ToArray(), "--print");
+            CollectionAssert.Contains(downloadArguments.ToArray(), "--no-quiet");
             Assert.IsTrue(downloadArguments.Any(argument => argument.Contains("140-8", StringComparison.Ordinal)));
         }
         finally
@@ -88,6 +90,37 @@ public sealed class YtDlpServiceArgumentTests
             "ERROR: unable to download video data: HTTP Error 404: Not Found"));
     }
 
+    [TestMethod]
+    public void BrowserCookies_AreOnlyAddedWhenExplicitlySelected()
+    {
+        var service = new YtDlpService(Path.GetTempPath());
+
+        var anonymousArguments = service.BuildAnalyzeArguments("https://example.test/video");
+        var browserArguments = service.BuildAnalyzeArguments(
+            "https://example.test/video",
+            browserCookieSource: BrowserCookieSource.Edge);
+        var downloadArguments = service.BuildDownloadArguments(new DownloadRequest(
+            "https://example.test/video",
+            Path.GetTempPath(),
+            DownloadMode.Mp3Audio,
+            "best",
+            null,
+            BrowserCookieSource: BrowserCookieSource.Firefox));
+
+        CollectionAssert.DoesNotContain(anonymousArguments.ToArray(), "--cookies-from-browser");
+        AssertOptionValue(browserArguments, "--cookies-from-browser", "edge");
+        AssertOptionValue(downloadArguments, "--cookies-from-browser", "firefox");
+    }
+
+    [TestMethod]
+    public void BotVerificationDetection_IsSeparateFromUnavailableVideo()
+    {
+        Assert.IsTrue(YtDlpService.IsBotVerificationError(
+            "ERROR: Sign in to confirm you're not a bot. Use --cookies-from-browser or --cookies for the authentication"));
+        Assert.IsFalse(YtDlpService.IsBotVerificationError(
+            "ERROR: This video is unavailable"));
+    }
+
     private static void AssertExtractionArguments(IReadOnlyList<string> arguments, string nodePath)
     {
         var runtimeIndex = arguments.IndexOf("--js-runtimes");
@@ -96,6 +129,16 @@ public sealed class YtDlpServiceArgumentTests
         Assert.IsGreaterThanOrEqualTo(0, runtimeIndex);
         Assert.AreEqual($"node:{nodePath}", arguments[runtimeIndex + 1]);
         Assert.AreEqual(-1, extractorIndex);
+    }
+
+    private static void AssertOptionValue(
+        IReadOnlyList<string> arguments,
+        string option,
+        string expectedValue)
+    {
+        var optionIndex = arguments.IndexOf(option);
+        Assert.IsGreaterThanOrEqualTo(0, optionIndex);
+        Assert.AreEqual(expectedValue, arguments[optionIndex + 1]);
     }
 }
 

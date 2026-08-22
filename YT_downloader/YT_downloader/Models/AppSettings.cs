@@ -11,4 +11,6 @@ public sealed class AppSettings
     public bool DownloadPlaylist { get; set; }
 
     public bool IsLightTheme { get; set; }
+
+    public BrowserCookieSource BrowserCookieSource { get; set; }
 }

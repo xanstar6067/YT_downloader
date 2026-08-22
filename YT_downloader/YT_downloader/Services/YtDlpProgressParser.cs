@@ -45,6 +45,11 @@ public static class YtDlpProgressParser
     {
         progress = new DownloadProgress(null, "—", "—", "—");
         var parts = payload.Split('|', StringSplitOptions.TrimEntries);
+        if (parts.Length == 12)
+        {
+            return TryParseDetailedTemplate(parts, out progress);
+        }
+
         if (parts.Length is not 4 and not 6)
         {
             return false;
@@ -65,9 +70,38 @@ public static class YtDlpProgressParser
         return true;
     }
 
+    private static bool TryParseDetailedTemplate(
+        IReadOnlyList<string> parts,
+        out DownloadProgress progress)
+    {
+        var percentText = parts[4].Trim().TrimEnd('%').Trim();
+        double? percent = TryParsePercent(percentText, out var parsedPercent) ? parsedPercent : null;
+
+        progress = new DownloadProgress(
+            percent,
+            Normalize(parts[5]),
+            Normalize(parts[6]),
+            Normalize(parts[7]),
+            PlaylistIndex: ParseNullableInt(parts[8]),
+            PlaylistCount: ParseNullableInt(parts[9]),
+            MediaId: NormalizeOptional(parts[0]),
+            FormatId: NormalizeOptional(parts[1]),
+            DownloadedBytes: ParseNullableLong(parts[2]),
+            TotalBytes: ParseNullableLong(parts[3]),
+            VideoCodec: NormalizeOptional(parts[10]),
+            AudioCodec: NormalizeOptional(parts[11]));
+        return true;
+    }
+
     private static int? ParseNullableInt(string value) =>
         int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var result)
             && result > 0
+                ? result
+                : null;
+
+    private static long? ParseNullableLong(string value) =>
+        long.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var result)
+            && result >= 0
                 ? result
                 : null;
 
@@ -90,5 +124,11 @@ public static class YtDlpProgressParser
             || normalized.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
                 ? "—"
                 : normalized;
+    }
+
+    private static string? NormalizeOptional(string value)
+    {
+        var normalized = Normalize(value);
+        return normalized == "—" ? null : normalized;
     }
 }

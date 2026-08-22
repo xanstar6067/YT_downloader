@@ -7,4 +7,10 @@ public sealed record DownloadProgress(
     string RemainingTime,
     string Status = "Загрузка",
     int? PlaylistIndex = null,
-    int? PlaylistCount = null);
+    int? PlaylistCount = null,
+    string? MediaId = null,
+    string? FormatId = null,
+    long? DownloadedBytes = null,
+    long? TotalBytes = null,
+    string? VideoCodec = null,
+    string? AudioCodec = null);

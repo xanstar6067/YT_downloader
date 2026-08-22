@@ -9,6 +9,7 @@ public interface IYtDlpService
     Task<VideoInfo> AnalyzeAsync(
         string url,
         bool includePlaylist,
+        BrowserCookieSource browserCookieSource,
         IProgress<string>? log,
         CancellationToken cancellationToken);
 
