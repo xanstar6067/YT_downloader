@@ -41,6 +41,7 @@ public sealed class MainViewModel : ViewModelBase
     private DownloadMode _selectedMode;
     private string _selectedResolution;
     private BrowserCookieSource _selectedBrowserCookieSource;
+    private int _selectedConcurrentFragments;
     private bool _downloadPlaylist;
     private bool _isLightTheme;
     private IReadOnlyList<AudioTrackInfo> _audioTrackOptions = [AutomaticAudioTrack];
@@ -75,6 +76,9 @@ public sealed class MainViewModel : ViewModelBase
         _selectedBrowserCookieSource = Enum.IsDefined(settings.BrowserCookieSource)
             ? settings.BrowserCookieSource
             : BrowserCookieSource.None;
+        _selectedConcurrentFragments = ConcurrentFragmentsOptions.Any(item => item.Value == settings.ConcurrentFragments)
+            ? settings.ConcurrentFragments
+            : 4;
         _downloadPlaylist = settings.DownloadPlaylist;
         _isLightTheme = settings.IsLightTheme;
         _themeService.ApplyTheme(_isLightTheme);
@@ -119,6 +123,15 @@ public sealed class MainViewModel : ViewModelBase
         new("Chromium", BrowserCookieSource.Chromium),
         new("Vivaldi", BrowserCookieSource.Vivaldi),
         new("Opera", BrowserCookieSource.Opera)
+    ];
+
+    public IReadOnlyList<ChoiceItem<int>> ConcurrentFragmentsOptions { get; } =
+    [
+        new("Без параллельности (1)", 1),
+        new("2 потока", 2),
+        new("4 потока", 4),
+        new("8 потоков", 8),
+        new("16 потоков", 16)
     ];
 
     public string Url
@@ -214,6 +227,18 @@ public sealed class MainViewModel : ViewModelBase
             ResetAnalysis();
             PersistSettings();
             RaiseCommandStates();
+        }
+    }
+
+    public int SelectedConcurrentFragments
+    {
+        get => _selectedConcurrentFragments;
+        set
+        {
+            if (SetProperty(ref _selectedConcurrentFragments, value))
+            {
+                PersistSettings();
+            }
         }
     }
 
@@ -471,7 +496,8 @@ public sealed class MainViewModel : ViewModelBase
                 SelectedResolution,
                 selectedAudioFormatId,
                 _analyzedIsPlaylist,
-                SelectedBrowserCookieSource);
+                SelectedBrowserCookieSource,
+                SelectedConcurrentFragments);
             Log(_analyzedIsPlaylist
                 ? "Режим плейлиста: каждый доступный элемент будет загружен по порядку."
                 : $"Аудиодорожка: {SelectedAudioTrack.DisplayName}.");
@@ -712,6 +738,7 @@ public sealed class MainViewModel : ViewModelBase
                 Mode = SelectedMode,
                 MaximumResolution = SelectedResolution,
                 BrowserCookieSource = SelectedBrowserCookieSource,
+                ConcurrentFragments = SelectedConcurrentFragments,
                 DownloadPlaylist = DownloadPlaylist,
                 IsLightTheme = IsLightTheme
             });

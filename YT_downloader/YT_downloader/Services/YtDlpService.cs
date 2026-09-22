@@ -209,6 +209,11 @@ public sealed class YtDlpService : IYtDlpService
         AddJavaScriptRuntimeArguments(arguments);
         AddBrowserCookieArguments(arguments, request.BrowserCookieSource);
 
+        if (request.ConcurrentFragments > 1)
+        {
+            arguments.AddRange(["--concurrent-fragments", request.ConcurrentFragments.ToString()]);
+        }
+
         if (request.Mode == DownloadMode.Mp3Audio)
         {
             var audioFormat = string.IsNullOrWhiteSpace(request.AudioFormatId)

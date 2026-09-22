@@ -143,6 +143,29 @@ public sealed class YtDlpServiceArgumentTests
     }
 
     [TestMethod]
+    public void ConcurrentFragments_AreOnlyAddedWhenGreaterThanOne()
+    {
+        var service = new YtDlpService(Path.GetTempPath());
+
+        var defaultArguments = service.BuildDownloadArguments(new DownloadRequest(
+            "https://example.test/video",
+            Path.GetTempPath(),
+            DownloadMode.Mp3Audio,
+            "best",
+            null));
+        var parallelArguments = service.BuildDownloadArguments(new DownloadRequest(
+            "https://example.test/video",
+            Path.GetTempPath(),
+            DownloadMode.Mp3Audio,
+            "best",
+            null,
+            ConcurrentFragments: 8));
+
+        CollectionAssert.DoesNotContain(defaultArguments.ToArray(), "--concurrent-fragments");
+        AssertOptionValue(parallelArguments, "--concurrent-fragments", "8");
+    }
+
+    [TestMethod]
     public void BotVerificationDetection_IsSeparateFromUnavailableVideo()
     {
         Assert.IsTrue(YtDlpService.IsBotVerificationError(

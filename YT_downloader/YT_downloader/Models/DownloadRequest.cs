@@ -7,4 +7,5 @@ public sealed record DownloadRequest(
     string MaximumResolution,
     string? AudioFormatId,
     bool DownloadPlaylist = false,
-    BrowserCookieSource BrowserCookieSource = BrowserCookieSource.None);
+    BrowserCookieSource BrowserCookieSource = BrowserCookieSource.None,
+    int ConcurrentFragments = 1);
