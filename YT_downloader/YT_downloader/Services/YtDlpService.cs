@@ -185,7 +185,7 @@ public sealed class YtDlpService : IYtDlpService
             arguments.Add("--flat-playlist");
         }
 
-        arguments.Add(url);
+        arguments.Add(NormalizeYouTubeUrl(url));
         return arguments;
     }
 
@@ -233,8 +233,31 @@ public sealed class YtDlpService : IYtDlpService
             arguments.AddRange(["--format", format, "--merge-output-format", "mp4"]);
         }
 
-        arguments.Add(request.Url);
+        arguments.Add(NormalizeYouTubeUrl(request.Url));
         return arguments;
+    }
+
+    internal static string NormalizeYouTubeUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || !(uri.Host.Equals("youtube.com", StringComparison.OrdinalIgnoreCase)
+                 || uri.Host.EndsWith(".youtube.com", StringComparison.OrdinalIgnoreCase)))
+        {
+            return url;
+        }
+
+        var pathSegments = uri.AbsolutePath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (pathSegments.Length != 2
+            || !pathSegments[0].Equals("show", StringComparison.OrdinalIgnoreCase)
+            || !pathSegments[1].StartsWith("VL", StringComparison.Ordinal)
+            || pathSegments[1].Length <= 2)
+        {
+            return url;
+        }
+
+        var playlistId = pathSegments[1][2..];
+        return $"https://www.youtube.com/playlist?list={Uri.EscapeDataString(playlistId)}";
     }
 
     private static string BuildOutputTemplate(DownloadRequest request) =>

@@ -81,6 +81,37 @@ public sealed class YtDlpServiceArgumentTests
     }
 
     [TestMethod]
+    public void YouTubeShowUrl_IsConvertedToCanonicalPlaylistForAnalyzeAndDownload()
+    {
+        const string showUrl =
+            "https://www.youtube.com/show/VLPL-ZXraMeHBPJHXBhrNowJaQslyqtUg-tZ?sbp=Kgt0ekQ5T3hBSHR6VUAB";
+        const string playlistUrl =
+            "https://www.youtube.com/playlist?list=PL-ZXraMeHBPJHXBhrNowJaQslyqtUg-tZ";
+        var service = new YtDlpService(Path.GetTempPath());
+
+        var analyzeArguments = service.BuildAnalyzeArguments(showUrl, includePlaylist: true);
+        var downloadArguments = service.BuildDownloadArguments(new DownloadRequest(
+            showUrl,
+            Path.GetTempPath(),
+            DownloadMode.Mp4Video,
+            "best",
+            null,
+            DownloadPlaylist: true));
+
+        Assert.AreEqual(playlistUrl, analyzeArguments[^1]);
+        Assert.AreEqual(playlistUrl, downloadArguments[^1]);
+    }
+
+    [TestMethod]
+    [DataRow("https://www.youtube.com/playlist?list=PL-test")]
+    [DataRow("https://www.youtube.com/watch_videos?video_ids=one,two")]
+    [DataRow("https://example.test/show/VLPL-test")]
+    public void OtherUrls_AreNotChanged(string url)
+    {
+        Assert.AreEqual(url, YtDlpService.NormalizeYouTubeUrl(url));
+    }
+
+    [TestMethod]
     public void ForbiddenDownloadDetection_RecognizesYtDlpHttp403()
     {
         Assert.IsTrue(YtDlpService.IsForbiddenDownloadError(
