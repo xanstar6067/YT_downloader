@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.IO;
 using YT_downloader.Commands;
@@ -8,7 +9,7 @@ namespace YT_downloader.ViewModels;
 
 public sealed class MainViewModel : ViewModelBase
 {
-    private const int MaximumLogLength = 40_000;
+    private const int MaximumLogEntries = 2000;
     private const string EmptyMediaTitle = "Сначала проанализируйте ссылку";
     private const string EmptyMediaType = "ВИДЕО ИЛИ ПЛЕЙЛИСТ";
     private static readonly AudioTrackInfo AutomaticAudioTrack = new(
@@ -53,7 +54,6 @@ public sealed class MainViewModel : ViewModelBase
     private string _remainingTime = "—";
     private string _statusText = "Готово к работе";
     private string _toolStatusText = string.Empty;
-    private string _logText = string.Empty;
     private bool _isBusy;
 
     public MainViewModel(
@@ -332,11 +332,7 @@ public sealed class MainViewModel : ViewModelBase
         private set => SetProperty(ref _toolStatusText, value);
     }
 
-    public string LogText
-    {
-        get => _logText;
-        private set => SetProperty(ref _logText, value);
-    }
+    public ObservableCollection<LogEntry> LogEntries { get; } = [];
 
     public bool IsBusy
     {
@@ -429,7 +425,7 @@ public sealed class MainViewModel : ViewModelBase
             Log(DownloadPlaylist
                 ? "Запущен анализ плейлиста."
                 : "Запущен анализ видео.");
-            var logProgress = new Progress<string>(Log);
+            var logProgress = new Progress<string>(message => Log(message));
             var videoInfo = await _ytDlpService.AnalyzeAsync(
                 Url,
                 DownloadPlaylist,
@@ -509,7 +505,7 @@ public sealed class MainViewModel : ViewModelBase
                 Log($"Для доступа используется сессия браузера: {browserName}.");
             }
             var progress = new Progress<DownloadProgress>(ApplyProgress);
-            var logProgress = new Progress<string>(Log);
+            var logProgress = new Progress<string>(message => Log(message));
             await _ytDlpService.DownloadAsync(request, progress, logProgress, cancellationToken);
 
             IsProgressIndeterminate = false;
@@ -531,7 +527,7 @@ public sealed class MainViewModel : ViewModelBase
         {
             StatusText = "Обновление yt-dlp…";
             Log("Проверка обновлений yt-dlp.");
-            var result = await _ytDlpService.UpdateAsync(new Progress<string>(Log), cancellationToken);
+            var result = await _ytDlpService.UpdateAsync(new Progress<string>(message => Log(message)), cancellationToken);
             RefreshToolStatus();
             StatusText = "yt-dlp обновлён";
             _userInteractionService.ShowInformation("Обновление yt-dlp", result);
@@ -555,15 +551,15 @@ public sealed class MainViewModel : ViewModelBase
         catch (OperationCanceledException)
         {
             StatusText = "Операция отменена";
-            Log("Операция отменена пользователем. Дочерний процесс завершён.");
+            Log("Операция отменена пользователем. Дочерний процесс завершён.", LogSeverity.Warning);
         }
         catch (YtDlpException exception)
         {
             StatusText = exception.Message;
-            Log(exception.Message);
+            Log(exception.Message, LogSeverity.Error);
             if (!string.IsNullOrWhiteSpace(exception.Details))
             {
-                Log(exception.Details);
+                Log(exception.Details, LogSeverity.Error);
             }
 
             _userInteractionService.ShowError("Ошибка yt-dlp", exception.Message);
@@ -572,21 +568,21 @@ public sealed class MainViewModel : ViewModelBase
         {
             const string message = "Нет доступа к выбранной папке. Выберите другую папку сохранения.";
             StatusText = message;
-            Log($"{message} {exception.Message}");
+            Log($"{message} {exception.Message}", LogSeverity.Error);
             _userInteractionService.ShowError("Нет доступа", message);
         }
         catch (IOException exception)
         {
             const string message = "Ошибка работы с файлами. Проверьте свободное место и выбранную папку.";
             StatusText = message;
-            Log($"{message} {exception.Message}");
+            Log($"{message} {exception.Message}", LogSeverity.Error);
             _userInteractionService.ShowError("Ошибка файловой системы", message);
         }
         catch (Exception exception)
         {
             const string message = "Произошла непредвиденная ошибка. Подробности добавлены в журнал.";
             StatusText = message;
-            Log($"{message} {exception}");
+            Log($"{message} {exception}", LogSeverity.Error);
             _userInteractionService.ShowError("Ошибка", message);
         }
         finally
@@ -714,19 +710,43 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
-    private void Log(string message)
+    private void Log(string message, LogSeverity? severity = null)
     {
-        if (string.IsNullOrWhiteSpace(message))
+        var trimmed = message?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
         {
             return;
         }
 
-        var entry = $"[{DateTime.Now:HH:mm:ss}] {message.Trim()}{Environment.NewLine}";
-        var combined = LogText + entry;
-        LogText = combined.Length <= MaximumLogLength
-            ? combined
-            : combined[^MaximumLogLength..];
+        LogEntries.Add(new LogEntry(DateTime.Now, trimmed, severity ?? DetectSeverity(trimmed)));
+        while (LogEntries.Count > MaximumLogEntries)
+        {
+            LogEntries.RemoveAt(0);
+        }
     }
+
+    private static LogSeverity DetectSeverity(string message)
+    {
+        if (ContainsAny(message, "ERROR", "ошибка", "не удал", "failed"))
+        {
+            return LogSeverity.Error;
+        }
+
+        if (ContainsAny(message, "WARNING", "предупреждение"))
+        {
+            return LogSeverity.Warning;
+        }
+
+        if (ContainsAny(message, "успешно", "завершена", "завершены"))
+        {
+            return LogSeverity.Success;
+        }
+
+        return LogSeverity.Info;
+    }
+
+    private static bool ContainsAny(string source, params string[] values) =>
+        values.Any(value => source.Contains(value, StringComparison.OrdinalIgnoreCase));
 
     private void PersistSettings()
     {

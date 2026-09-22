@@ -18,4 +18,7 @@
     <SolidColorBrush x:Key="ComboBoxItemSelectedBrush" Color="#BAE6FD" />
     <SolidColorBrush x:Key="ThumbnailBackgroundBrush" Color="#E2E8F0" />
     <SolidColorBrush x:Key="ProgressTrackBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="LogErrorBrush" Color="#DC2626" />
+    <SolidColorBrush x:Key="LogWarningBrush" Color="#B45309" />
+    <SolidColorBrush x:Key="LogSuccessBrush" Color="#15803D" />
 </ResourceDictionary>

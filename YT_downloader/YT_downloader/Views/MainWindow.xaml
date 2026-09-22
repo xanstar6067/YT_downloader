@@ -4,9 +4,9 @@
         Title="YT Downloader"
         Icon="/YT.ico"
         Width="1100"
-        Height="820"
+        Height="960"
         MinWidth="920"
-        MinHeight="720"
+        MinHeight="820"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource WindowBrush}"
         Foreground="{DynamicResource TextBrush}"
@@ -17,7 +17,8 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="160" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -262,7 +263,27 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="4"
+        <GridSplitter Grid.Row="4"
+                      Height="14"
+                      Margin="0,-3,0,0"
+                      HorizontalAlignment="Stretch"
+                      Background="Transparent"
+                      Cursor="SizeNS"
+                      ResizeBehavior="PreviousAndNext"
+                      ResizeDirection="Rows">
+            <GridSplitter.Template>
+                <ControlTemplate TargetType="GridSplitter">
+                    <Border Background="Transparent">
+                        <Border Height="4"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource BorderBrush}"
+                                CornerRadius="2" />
+                    </Border>
+                </ControlTemplate>
+            </GridSplitter.Template>
+        </GridSplitter>
+
+        <Border Grid.Row="5"
                 Margin="0,0,0,14"
                 Padding="12"
                 Background="{DynamicResource CardBrush}"
@@ -275,20 +296,22 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <TextBlock Margin="4,0,0,8" FontWeight="SemiBold" Text="Журнал выполнения" />
-                <TextBox Grid.Row="1"
-                         MinHeight="100"
-                         Padding="10"
-                         AcceptsReturn="True"
-                         FontFamily="Global Monospace"
-                         FontSize="12"
-                         IsReadOnly="True"
-                         Text="{Binding LogText, Mode=OneWay}"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto" />
+                <RichTextBox x:Name="LogRichTextBox"
+                             Grid.Row="1"
+                             MinHeight="140"
+                             Padding="10"
+                             FontFamily="Global Monospace"
+                             FontSize="12"
+                             IsReadOnly="True"
+                             IsDocumentEnabled="True"
+                             HorizontalScrollBarVisibility="Disabled"
+                             VerticalScrollBarVisibility="Auto">
+                    <FlowDocument PagePadding="0" />
+                </RichTextBox>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="5">
+        <Grid Grid.Row="6">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
