@@ -31,6 +31,7 @@ public partial class App : Application
             userInteractionService,
             themeService);
         var mainWindow = new MainWindow { DataContext = _mainViewModel };
+        _ = new WindowPlacementService(mainWindow, _mainViewModel.WindowPlacement, _mainViewModel.SaveWindowPlacement);
 
         MainWindow = mainWindow;
         mainWindow.Show();

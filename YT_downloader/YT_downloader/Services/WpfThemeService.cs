@@ -4,8 +4,8 @@ namespace YT_downloader.Services;
 
 public sealed class WpfThemeService : IThemeService
 {
-    private const string DarkThemePath = "/Themes/DarkTheme.xaml";
-    private const string LightThemePath = "/Themes/LightTheme.xaml";
+    private const string DarkThemePath = "/YtDlpDownloader;component/Themes/DarkTheme.xaml";
+    private const string LightThemePath = "/YtDlpDownloader;component/Themes/LightTheme.xaml";
 
     public void ApplyTheme(bool isLightTheme)
     {

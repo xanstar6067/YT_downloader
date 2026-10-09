@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -16,6 +17,33 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        DownloadOptionsScrollViewer.SizeChanged += (_, _) => UpdateCardLayout();
+        PreviewCover.SizeChanged += (_, _) =>
+            PreviewCover.Clip = new RectangleGeometry(new Rect(0, 0, PreviewCover.ActualWidth, PreviewCover.ActualHeight), 11, 11);
+        LayoutRoot.SizeChanged += (_, _) => UpdateScrollableHeight();
+        HeaderGrid.SizeChanged += (_, _) => UpdateScrollableHeight();
+        ProgressCard.SizeChanged += (_, _) => UpdateScrollableHeight();
+        UpdateCardLayout();
+    }
+
+    private void UpdateScrollableHeight()
+    {
+        var availableHeight = LayoutRoot.ActualHeight
+            - HeaderGrid.ActualHeight - HeaderGrid.Margin.Top - HeaderGrid.Margin.Bottom
+            - ProgressCard.ActualHeight - ProgressCard.Margin.Top - ProgressCard.Margin.Bottom
+            - LayoutRoot.RowDefinitions[3].MinHeight
+            - DownloadOptionsScrollViewer.Margin.Top - DownloadOptionsScrollViewer.Margin.Bottom;
+        DownloadOptionsScrollViewer.MaxHeight = Math.Max(0, availableHeight);
+    }
+
+    private void UpdateCardLayout()
+    {
+        var stacked = DownloadOptionsScrollViewer.ActualWidth < 900;
+        Grid.SetColumn(OptionsCard, stacked ? 0 : 2);
+        Grid.SetRow(OptionsCard, stacked ? 1 : 0);
+        Grid.SetColumnSpan(OptionsCard, stacked ? 3 : 1);
+        Grid.SetColumnSpan(PreviewCard, stacked ? 3 : 1);
+        OptionsCard.Margin = stacked ? new Thickness(0, 12, 0, 0) : new Thickness(0);
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

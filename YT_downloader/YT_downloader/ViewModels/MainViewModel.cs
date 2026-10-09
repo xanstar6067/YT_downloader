@@ -55,6 +55,7 @@ public sealed class MainViewModel : ViewModelBase
     private string _statusText = "Готово к работе";
     private string _toolStatusText = string.Empty;
     private bool _isBusy;
+    private WindowPlacement? _windowPlacement;
 
     public MainViewModel(
         IYtDlpService ytDlpService,
@@ -68,6 +69,7 @@ public sealed class MainViewModel : ViewModelBase
         _themeService = themeService;
 
         var settings = _settingsService.Load();
+        _windowPlacement = settings.WindowPlacement;
         _saveFolder = ResolveInitialFolder(settings.SaveFolder);
         _selectedMode = Enum.IsDefined(settings.Mode) ? settings.Mode : DownloadMode.Mp4Video;
         _selectedResolution = ResolutionOptions.Any(item => item.Value == settings.MaximumResolution)
@@ -748,6 +750,19 @@ public sealed class MainViewModel : ViewModelBase
     private static bool ContainsAny(string source, params string[] values) =>
         values.Any(value => source.Contains(value, StringComparison.OrdinalIgnoreCase));
 
+    public WindowPlacement? WindowPlacement => _windowPlacement;
+
+    public void SaveWindowPlacement(WindowPlacement placement)
+    {
+        if (_windowPlacement == placement)
+        {
+            return;
+        }
+
+        _windowPlacement = placement;
+        PersistSettings();
+    }
+
     private void PersistSettings()
     {
         try
@@ -760,7 +775,8 @@ public sealed class MainViewModel : ViewModelBase
                 BrowserCookieSource = SelectedBrowserCookieSource,
                 ConcurrentFragments = SelectedConcurrentFragments,
                 DownloadPlaylist = DownloadPlaylist,
-                IsLightTheme = IsLightTheme
+                IsLightTheme = IsLightTheme,
+                WindowPlacement = _windowPlacement
             });
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

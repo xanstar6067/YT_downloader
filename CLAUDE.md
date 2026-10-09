@@ -17,7 +17,7 @@ WPF-приложение (.NET 10, Windows) — GUI-обёртка над `yt-dl
 YT_downloader/                         ← корень .sln (YT_downloader.slnx)
 ├── YT_downloader/                     ← WPF-приложение (проект YtDlpDownloader.dll)
 │   ├── App.xaml.cs                    ← composition root: создаёт все сервисы и MainViewModel
-│   ├── Views/MainWindow.xaml(.cs)     ← единственное окно, чистый MVVM-биндинг
+│   ├── Views/MainWindow.xaml(.cs)     ← единственное окно, MVVM-биндинг и логика компоновки
 │   ├── ViewModels/
 │   │   ├── ViewModelBase.cs           ← INotifyPropertyChanged + SetProperty helper
 │   │   └── MainViewModel.cs           ← всё состояние и сценарии интерфейса (самый большой файл)
@@ -39,6 +39,8 @@ YT_downloader/                         ← корень .sln (YT_downloader.slnx
 - `AudioTrackInfo`, `BrowserCookieSource`, `ChoiceItem<T>` (пара displayName/value для комбобоксов),
   `DownloadMode` (Mp4Video/Mp3Audio), `AppSettings` (персистентные настройки пользователя),
   `ToolAvailability` (какие из 4 инструментов найдены на диске).
+- `WindowPlacement` — размер и координаты обычного окна в физических пикселях экрана,
+  плюс признак развёрнутого состояния; хранится в `AppSettings.WindowPlacement`.
 
 ## Сервисы (`Services/`)
 
@@ -70,6 +72,10 @@ YT_downloader/                         ← корень .sln (YT_downloader.slnx
 - **`JsonSettingsService`** — читает/пишет `%LOCALAPPDATA%\YtDlpDownloader\settings.json`
   (atomic write через `.tmp` + `File.Move`). Любое новое поле `AppSettings` не ломает старые
   файлы (JSON-десериализация даёт значения по умолчанию).
+- **`WindowPlacementService`** — восстанавливает и сохраняет геометрию окна, ограничивает её
+  рабочей областью ближайшего монитора с учётом DPI и панели задач. Запись после перемещения/
+  изменения размера откладывается на 500 мс, при закрытии выполняется сразу. Свёрнутое состояние
+  не заменяет сохранённые обычные размеры или предыдущее развёрнутое состояние.
 - **`WpfThemeService`**, **`WpfUserInteractionService`** — тонкие обёртки над WPF/Win32
   (смена темы через `Application.Resources`, диалоги папки/сообщений, буфер обмена).
 - **`YtDlpException`** + `YtDlpErrorKind` — типизированные ошибки для UI; `CreateProcessException`
@@ -85,17 +91,28 @@ YT_downloader/                         ← корень .sln (YT_downloader.slnx
   `ChoiceItem<T>`, объявленные прямо в VM.
 - Настройки персистятся через `PersistSettings()` при каждом изменении соответствующего свойства
   (папка, режим, разрешение, cookies-браузер, `ConcurrentFragments`, playlist-флаг, тема).
-- `MainWindow.xaml` — чистый биндинг, вся логика в VM. Карточка «Параметры сохранения» — самое
-  вероятное место для новых пользовательских настроек скачивания.
+  `SaveWindowPlacement` сохраняет геометрию через тот же путь; `PersistSettings` сохраняет
+  её вместе с остальными настройками, чтобы изменение опций не сбрасывало положение окна.
+- `MainWindow.xaml` — биндинг сценариев к VM; ссылка, карточки и плавающие кнопки скачивания/
+  отмены поверх обложки помещены в `ScrollViewer`. Флажок плейлиста находится в строке ссылки.
+  Прогресс расположен под карточками, журнал — внизу без разделителя. В code-behind карточки
+  перестраиваются в один столбец при ширине области параметров менее 900 логических единиц;
+  высота прокрутки ограничивается свободным местом, остальное получает журнал. Начальный
+  размер — 1100×740. Карточка «Параметры сохранения» — основное место для новых опций.
 
 ## Тесты (`YT_downloader.Tests/`)
 
-MSTest, без моков UI/процессов — тестируются чистые функции:
+MSTest — парсеры, аргументы, геометрия окна и WPF-компоновка:
 - `YtDlpServiceArgumentTests` — `BuildAnalyzeArguments`/`BuildDownloadArguments`/`NormalizeYouTubeUrl`/
   детекторы ошибок (403, bot-verification). При добавлении нового флага yt-dlp — добавляй сюда тест
   на его наличие/отсутствие по условию (см. `ConcurrentFragments_AreOnlyAddedWhenGreaterThanOne`).
 - `YtDlpProgressParserTests`, `YtDlpMetadataParserTests`, `DownloadProgressAggregatorTests`,
   `DisplayModelTests`.
+- `WindowPlacementTests` — ограничение геометрии рабочей областью, DPI, отключённый монитор,
+  отрицательные координаты второго монитора и совместимость JSON-настроек.
+- `WindowLayoutTests` — компоновка с реальной VM при масштабе 100–200%, доступность параметров
+  через прокрутку, сохранение геометрии при изменении опций, восстановление скрытых нативных
+  окон и закрытие в свёрнутом состоянии. PNG-превью генерируются в `bin/.../layout-previews`.
 
 Запуск: `dotnet test .\YT_downloader\YT_downloader.slnx`.
 

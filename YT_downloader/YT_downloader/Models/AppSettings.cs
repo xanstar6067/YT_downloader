@@ -15,4 +15,6 @@ public sealed class AppSettings
     public BrowserCookieSource BrowserCookieSource { get; set; }
 
     public int ConcurrentFragments { get; set; } = 4;
+
+    public WindowPlacement? WindowPlacement { get; set; }
 }
