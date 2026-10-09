@@ -33,11 +33,11 @@ public sealed class WindowLayoutTests
                 Assert.AreEqual(placement, settings.Settings.WindowPlacement, "Other settings must preserve window placement");
                 foreach (var (width, height, scale) in new[]
                 {
-                    (1100.0, 740.0, 1.0),
+                    (920.0, 600.0, 1.0),
                     (1280.0, 688.0, 1.25),
                     (1066.0, 573.0, 1.5),
-                    (800.0, 430.0, 2.0),
-                    (760.0, 480.0, 1.0)
+                    (800.0, 480.0, 2.0),
+                    (780.0, 480.0, 1.0)
                 })
                 {
                     var window = new MainWindow { DataContext = viewModel };
@@ -49,46 +49,36 @@ public sealed class WindowLayoutTests
                     root.Arrange(new Rect(size));
                     root.UpdateLayout();
 
-                    var scroll = (ScrollViewer)window.FindName("DownloadOptionsScrollViewer");
-                    var options = (Border)window.FindName("OptionsCard");
                     var preview = (Border)window.FindName("PreviewCard");
-                    var progress = (Border)window.FindName("ProgressCard");
+                    var options = (Border)window.FindName("OptionsCard");
+                    var progress = (Grid)window.FindName("ProgressCard");
                     var log = (Border)window.FindName("LogCard");
-                    foreach (var element in new FrameworkElement[] { progress, log })
+                    foreach (var element in new FrameworkElement[] { preview, options, progress, log })
                     {
                         var position = element.TranslatePoint(new Point(), root);
                         Assert.IsTrue(position.Y >= 0 && position.Y + element.ActualHeight <= root.ActualHeight + 1,
-                            $"{width}×{height}: progress/log area clipped");
+                            $"{width}×{height}: {element.Name} clipped");
                     }
                     Assert.IsGreaterThan(progress.TranslatePoint(new Point(), root).Y, log.TranslatePoint(new Point(), root).Y,
                         "The execution log must sit below progress");
+                    Assert.IsGreaterThan(40.0, log.ActualHeight, $"{width}×{height}: log must keep usable height");
                     var url = (TextBox)window.FindName("UrlTextBox");
                     var playlist = (CheckBox)window.FindName("PlaylistCheckBox");
                     var urlCenter = url.TranslatePoint(new Point(0, url.ActualHeight / 2), root).Y;
                     var playlistCenter = playlist.TranslatePoint(new Point(0, playlist.ActualHeight / 2), root).Y;
                     Assert.IsLessThan(2.0, Math.Abs(urlCenter - playlistCenter), "Playlist choice must share the URL row");
 
-                    Assert.AreEqual(width < 954 ? 1 : 0, Grid.GetRow(options));
-                    Assert.IsGreaterThan(0.0, scroll.ViewportHeight);
-                    scroll.ScrollToEnd();
-                    root.UpdateLayout();
-                    var optionsBottom = options.TranslatePoint(new Point(0, options.ActualHeight), scroll).Y;
-                    Assert.IsLessThanOrEqualTo(scroll.ActualHeight + 1, optionsBottom, "Last setting must be reachable by scrolling");
-
                     foreach (var name in new[] { "DownloadButton", "CancelButton" })
                     {
                         var button = (Button)window.FindName(name);
-                        Assert.IsTrue(preview.IsAncestorOf(button), "Download controls must float inside the preview card");
-                        var offset = button.TranslatePoint(new Point(), scroll).Y;
-                        scroll.ScrollToVerticalOffset(scroll.VerticalOffset + offset - 8);
-                        root.UpdateLayout();
-                        var position = button.TranslatePoint(new Point(), scroll);
-                        Assert.IsTrue(position.Y >= 0 && position.Y + button.ActualHeight <= scroll.ActualHeight + 1,
-                            $"{width}×{height}: {name} must remain reachable");
+                        Assert.IsTrue(preview.IsAncestorOf(button), "Download controls must live in the media card");
+                        var position = button.TranslatePoint(new Point(), root);
+                        Assert.IsTrue(position.X >= 0 && position.X + button.ActualWidth <= root.ActualWidth + 1
+                            && position.Y >= 0 && position.Y + button.ActualHeight <= root.ActualHeight + 1,
+                            $"{width}×{height}: {name} must be visible");
                     }
 
                     // Render offscreen for visual inspection; no application window is displayed.
-                    scroll.ScrollToTop();
                     root.UpdateLayout();
                     var bitmap = new RenderTargetBitmap((int)Math.Ceiling(size.Width * scale),
                         (int)Math.Ceiling(size.Height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);

@@ -3,332 +3,287 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="YT Downloader"
         Icon="/YtDlpDownloader;component/YT.ico"
-        Width="1100"
-        Height="740"
-        MinWidth="760"
+        Width="920"
+        Height="600"
+        MinWidth="780"
         MinHeight="480"
         WindowStartupLocation="Manual"
         Background="{DynamicResource WindowBrush}"
         Foreground="{DynamicResource TextBrush}"
-        FontFamily="Segoe UI, Global User Interface">
-    <Grid x:Name="LayoutRoot" Margin="18,16">
+        FontFamily="Segoe UI, Global User Interface"
+        FontSize="13">
+    <Window.Resources>
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,0,0,2" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+        </Style>
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+    </Window.Resources>
+    <Grid x:Name="LayoutRoot" Margin="12,10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" MinHeight="80" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" MinHeight="96" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="60" />
         </Grid.RowDefinitions>
 
-        <Grid x:Name="HeaderGrid" Grid.Row="0" Margin="0,0,0,12">
+        <Grid x:Name="HeaderGrid" Grid.Row="0" Margin="0,0,11,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Text="YT Downloader" />
+            <TextBlock Grid.Column="1"
+                       Margin="12,0,12,0"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource MutedTextBrush}"
+                       FontSize="12"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding ToolStatusText}"
+                       Text="{Binding ToolStatusText}" />
+            <Button Grid.Column="2"
+                    Width="128" Height="30"
+                    Command="{Binding ToggleThemeCommand}"
+                    Content="{Binding ThemeToggleText}" />
+            <Button Grid.Column="3"
+                    Margin="6,0,0,0"
+                    Command="{Binding UpdateCommand}"
+                    Width="128" Height="30"
+                    Content="Обновить yt-dlp" />
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="0,0,11,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <StackPanel>
-                <TextBlock FontSize="24" FontWeight="Bold" Text="YT Downloader" />
-                <TextBlock Margin="0,4,0,0"
-                           Foreground="{DynamicResource MutedTextBrush}"
-                           Text="Скачивание видео и плейлистов с помощью yt-dlp"
-                           TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button MinWidth="125"
-                            Command="{Binding ToggleThemeCommand}"
-                            Content="{Binding ThemeToggleText}" />
-                    <Button Margin="10,0,0,0"
-                            Command="{Binding UpdateCommand}"
-                            Content="Обновить yt-dlp" />
-                </StackPanel>
-                <TextBlock Margin="0,7,0,0"
-                           HorizontalAlignment="Right"
-                           Foreground="{DynamicResource MutedTextBrush}"
-                           FontSize="12"
-                           MaxWidth="330"
-                           TextTrimming="CharacterEllipsis"
-                           ToolTip="{Binding ToolStatusText}"
-                           Text="{Binding ToolStatusText}" />
-            </StackPanel>
+            <TextBox x:Name="UrlTextBox"
+                     MinHeight="30"
+                     Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="Вставьте ссылку на видео или плейлист" />
+            <Button Grid.Column="1"
+                    Margin="6,0,0,0"
+                    Command="{Binding PasteCommand}"
+                    Content="Вставить" />
+            <CheckBox x:Name="PlaylistCheckBox"
+                      Grid.Column="2"
+                      Margin="12,0,6,0"
+                      VerticalAlignment="Center"
+                      Content="Весь плейлист"
+                      IsEnabled="{Binding IsNotBusy}"
+                      IsChecked="{Binding DownloadPlaylist}"
+                      ToolTip="Включите для анализа и скачивания всех видео из плейлиста" />
+            <Button Grid.Column="3"
+                    Width="128" Height="30"
+                    Command="{Binding AnalyzeCommand}"
+                    Content="Анализировать"
+                    Style="{StaticResource PrimaryButtonStyle}" />
         </Grid>
 
-        <ScrollViewer x:Name="DownloadOptionsScrollViewer"
-                      Grid.Row="1"
-                      Margin="0,0,0,14"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      PanningMode="VerticalOnly">
-            <StackPanel>
-                <Border Margin="0,0,0,14"
-                        Padding="14"
-                        Background="{DynamicResource CardBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="12">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="UrlTextBox" MinHeight="40"
-                                 VerticalContentAlignment="Center"
-                                 Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Вставьте ссылку на видео или плейлист" />
-                        <CheckBox x:Name="PlaylistCheckBox"
-                                  Grid.Column="1"
-                                  Margin="12,0,2,0"
-                                  VerticalAlignment="Center"
-                                  Content="Весь плейлист"
-                                  IsEnabled="{Binding IsNotBusy}"
-                                  IsChecked="{Binding DownloadPlaylist}"
-                                  ToolTip="Включите для анализа и скачивания всех видео из плейлиста" />
-                        <Button Grid.Column="2"
-                                Margin="10,0,0,0"
-                                Command="{Binding PasteCommand}"
-                                Content="Вставить" />
-                        <Button Grid.Column="3"
-                                Margin="10,0,0,0"
-                                Command="{Binding AnalyzeCommand}"
-                                Content="Анализировать"
-                                Style="{StaticResource PrimaryButtonStyle}" />
-                    </Grid>
-                </Border>
+        <Border x:Name="PreviewCard" Grid.Row="2" Margin="0,0,0,8" Style="{StaticResource CardStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-                <Grid x:Name="MediaCardsGrid">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="0.85*" />
-                        <ColumnDefinition Width="14" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <Border x:Name="PreviewCard" Grid.Column="0"
-                            MinHeight="236"
-                            Background="{DynamicResource CardBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="12">
-                        <Grid x:Name="PreviewCover" Background="{DynamicResource ThumbnailBackgroundBrush}">
-                            <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
-                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource MutedTextBrush}" Text="Превью видео">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ThumbnailUrl}" Value="{x:Null}">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <Border Margin="12" Padding="10" VerticalAlignment="Top"
-                                    Background="#E60B1120" CornerRadius="8">
-                                <StackPanel>
-                                    <TextBlock Foreground="#B7C7DE" FontSize="12" Text="{Binding MediaTypeText}" />
-                                    <TextBlock Margin="0,6,0,0" FontSize="18" FontWeight="SemiBold"
-                                               Foreground="#EDF2FC" MaxHeight="75" Text="{Binding VideoTitle}"
-                                               ToolTip="{Binding VideoTitle}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Margin="0,6,0,0" Foreground="#B7C7DE"
-                                               Text="{Binding MediaDetailsText}" TextWrapping="Wrap" />
-                                </StackPanel>
-                            </Border>
-                            <Border Margin="12" Padding="8" VerticalAlignment="Bottom" HorizontalAlignment="Right"
-                                    Background="#E60B1120" CornerRadius="10">
-                                <StackPanel Orientation="Horizontal">
-                                    <Button x:Name="CancelButton" MinWidth="105"
-                                            Command="{Binding CancelCommand}" Content="Отменить"
-                                            Style="{StaticResource DangerButtonStyle}" />
-                                    <Button x:Name="DownloadButton" MinWidth="145" Margin="8,0,0,0"
-                                            Command="{Binding DownloadCommand}" Content="Скачать"
-                                            Style="{StaticResource PrimaryButtonStyle}" />
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </Border>
-
-                    <Border x:Name="OptionsCard" Grid.Column="2"
-                            Padding="14"
-                            Background="{DynamicResource CardBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="12">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Параметры сохранения" />
-                            <TextBlock Grid.Row="1" Margin="0,8,0,5"
-                                       Foreground="{DynamicResource MutedTextBrush}"
-                                       Text="Папка" />
-                            <Grid Grid.Row="2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBox IsReadOnly="True" Text="{Binding SaveFolder, Mode=OneWay}" />
-                                <Button Grid.Column="1" Margin="8,0,0,0"
-                                        Command="{Binding SelectFolderCommand}"
-                                        Content="Выбрать…" />
-                            </Grid>
-                            <Grid Grid.Row="3" Margin="0,8,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="12" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="12" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Margin="0,0,0,5"
-                                               Foreground="{DynamicResource MutedTextBrush}"
-                                               Text="Режим" />
-                                    <ComboBox ItemsSource="{Binding ModeOptions}"
-                                              DisplayMemberPath="DisplayName"
-                                              SelectedValuePath="Value"
-                                              SelectedValue="{Binding SelectedMode}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Margin="0,0,0,5"
-                                               Foreground="{DynamicResource MutedTextBrush}"
-                                               Text="Макс. качество" />
-                                    <ComboBox ItemsSource="{Binding ResolutionOptions}"
-                                              DisplayMemberPath="DisplayName"
-                                              SelectedValuePath="Value"
-                                              SelectedValue="{Binding SelectedResolution}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="4">
-                                    <TextBlock Margin="0,0,0,5"
-                                               Foreground="{DynamicResource MutedTextBrush}"
-                                               Text="Фрагментов" />
-                                    <ComboBox ItemsSource="{Binding ConcurrentFragmentsOptions}"
-                                              DisplayMemberPath="DisplayName"
-                                              SelectedValuePath="Value"
-                                              SelectedValue="{Binding SelectedConcurrentFragments}"
-                                              ToolTip="Число одновременно скачиваемых фрагментов видео/аудио. Больше потоков — быстрее загрузка, но выше нагрузка на сеть и риск ограничений со стороны сервера." />
-                                </StackPanel>
-                            </Grid>
-                            <Grid Grid.Row="4" Margin="0,8,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="12" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Margin="0,0,0,5"
-                                               Foreground="{DynamicResource MutedTextBrush}"
-                                               Text="Аудиодорожка" />
-                                    <ComboBox ItemsSource="{Binding AudioTrackOptions}"
-                                              DisplayMemberPath="DisplayName"
-                                              IsEnabled="{Binding IsAudioTrackSelectionEnabled}"
-                                              SelectedItem="{Binding SelectedAudioTrack}"
-                                              ToolTip="Для плейлиста используется автоматический выбор дорожки" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Margin="0,0,0,5"
-                                               Foreground="{DynamicResource MutedTextBrush}"
-                                               Text="Сессия браузера" />
-                                    <ComboBox ItemsSource="{Binding BrowserCookieOptions}"
-                                              DisplayMemberPath="DisplayName"
-                                              SelectedValuePath="Value"
-                                              SelectedValue="{Binding SelectedBrowserCookieSource}"
-                                              ToolTip="Используйте после прохождения CAPTCHA в обычном окне этого браузера. Cookies читаются только при явном выборе." />
-                                </StackPanel>
-                            </Grid>
-
-                        </Grid>
-                    </Border>
+                <Grid x:Name="PreviewCover"
+                      Width="128"
+                      Height="72"
+                      Background="{DynamicResource ThumbnailBackgroundBrush}">
+                    <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}" Text="Превью">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ThumbnailUrl}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Grid>
 
-            </StackPanel>
-        </ScrollViewer>
+                <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                    <TextBlock FontSize="11"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="{Binding MediaTypeText}" />
+                    <TextBlock Margin="0,2,0,0"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               MaxHeight="40"
+                               Text="{Binding VideoTitle}"
+                               ToolTip="{Binding VideoTitle}"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Margin="0,2,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               FontSize="12"
+                               Text="{Binding MediaDetailsText}"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
 
-        <Border x:Name="ProgressCard" Grid.Row="2"
-                Margin="0,0,0,14"
-                Padding="14,10"
-                Background="{DynamicResource CardBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="12">
+                <StackPanel Grid.Column="2" Width="128" VerticalAlignment="Center">
+                    <Button x:Name="DownloadButton"
+                            Height="30"
+                            Command="{Binding DownloadCommand}"
+                            Content="Скачать"
+                            Style="{StaticResource PrimaryButtonStyle}" />
+                    <Button x:Name="CancelButton"
+                            Height="30" Margin="0,6,0,0"
+                            Command="{Binding CancelCommand}"
+                            Content="Отменить"
+                            Style="{StaticResource DangerButtonStyle}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border x:Name="OptionsCard" Grid.Row="3" Margin="0,0,0,8" Style="{StaticResource CardStyle}">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Foreground="{DynamicResource MutedTextBrush}"
-                               Text="{Binding StatusText}" ToolTip="{Binding StatusText}"
-                               TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="1" Margin="12,0,0,0"
-                               Text="{Binding ProgressValue, StringFormat={}{0:0}%}" />
+                    <TextBlock Margin="0,0,8,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="Папка" />
+                    <TextBox Grid.Column="1" IsReadOnly="True" Text="{Binding SaveFolder, Mode=OneWay}" />
+                    <Button Grid.Column="2" Width="128" Height="30" Margin="6,0,0,0"
+                            Command="{Binding SelectFolderCommand}"
+                            Content="Выбрать…" />
                 </Grid>
-                <ProgressBar Grid.Row="1" Height="8"
-                             Maximum="100"
-                             IsIndeterminate="{Binding IsProgressIndeterminate, Mode=OneWay}"
-                             Value="{Binding ProgressValue, Mode=OneWay}"
-                             Background="{DynamicResource ProgressTrackBrush}"
-                             Foreground="{DynamicResource AccentBrush}" />
-                <Grid Grid.Row="2" Margin="0,8,0,0">
+                <Grid Grid.Row="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="1.2*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="1.2*" />
                     </Grid.ColumnDefinitions>
                     <StackPanel>
-                        <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Скорость" />
-                        <TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding Speed}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Размер" />
-                        <TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding FileSize}" />
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Режим" />
+                        <ComboBox ItemsSource="{Binding ModeOptions}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding SelectedMode}" />
                     </StackPanel>
                     <StackPanel Grid.Column="2">
-                        <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Осталось" />
-                        <TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding RemainingTime}" />
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Макс. качество" />
+                        <ComboBox ItemsSource="{Binding ResolutionOptions}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding SelectedResolution}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Фрагментов" />
+                        <ComboBox ItemsSource="{Binding ConcurrentFragmentsOptions}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding SelectedConcurrentFragments}"
+                                  ToolTip="Число одновременно скачиваемых фрагментов видео/аудио. Больше потоков — быстрее загрузка, но выше нагрузка на сеть и риск ограничений со стороны сервера." />
+                    </StackPanel>
+                    <StackPanel Grid.Column="6">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Аудиодорожка" />
+                        <ComboBox ItemsSource="{Binding AudioTrackOptions}"
+                                  DisplayMemberPath="DisplayName"
+                                  IsEnabled="{Binding IsAudioTrackSelectionEnabled}"
+                                  SelectedItem="{Binding SelectedAudioTrack}"
+                                  ToolTip="Для плейлиста используется автоматический выбор дорожки" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="8">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Сессия браузера" />
+                        <ComboBox ItemsSource="{Binding BrowserCookieOptions}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding SelectedBrowserCookieSource}"
+                                  ToolTip="Используйте после прохождения CAPTCHA в обычном окне этого браузера. Cookies читаются только при явном выборе." />
                     </StackPanel>
                 </Grid>
             </Grid>
         </Border>
 
-        <Border x:Name="LogCard" Grid.Row="3"
-                Padding="12"
-                Background="{DynamicResource CardBrush}"
+        <Grid x:Name="ProgressCard" Grid.Row="4" Margin="0,0,0,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock FontSize="12"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding StatusText}" ToolTip="{Binding StatusText}"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Margin="12,0,0,0" FontSize="12"
+                           Text="{Binding ProgressValue, StringFormat={}{0:0}%}" />
+            </Grid>
+            <ProgressBar Grid.Row="1" Height="8"
+                         Maximum="100"
+                         BorderBrush="{DynamicResource BorderBrush}"
+                         BorderThickness="1"
+                         IsIndeterminate="{Binding IsProgressIndeterminate, Mode=OneWay}"
+                         Value="{Binding ProgressValue, Mode=OneWay}"
+                         Background="{DynamicResource ProgressTrackBrush}"
+                         Foreground="{DynamicResource AccentBrush}" />
+            <StackPanel Grid.Row="2" Margin="0,4,0,0" Orientation="Horizontal" TextElement.FontSize="12">
+                <TextBlock Foreground="{DynamicResource MutedTextBrush}" Text="Скорость " />
+                <TextBlock Text="{Binding Speed}" />
+                <TextBlock Margin="12,0,0,0" Foreground="{DynamicResource MutedTextBrush}" Text="Размер " />
+                <TextBlock Text="{Binding FileSize}" />
+                <TextBlock Margin="12,0,0,0" Foreground="{DynamicResource MutedTextBrush}" Text="Осталось " />
+                <TextBlock Text="{Binding RemainingTime}" />
+            </StackPanel>
+        </Grid>
+
+        <Border x:Name="LogCard" Grid.Row="5"
+                Background="{DynamicResource InputBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
-                CornerRadius="12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <TextBlock Margin="4,0,0,8" FontWeight="SemiBold" Text="Журнал выполнения" />
-                <RichTextBox x:Name="LogRichTextBox"
-                             Grid.Row="1"
-                             MinHeight="0"
-                             Padding="10"
-                             FontFamily="Global Monospace"
-                             FontSize="12"
-                             IsReadOnly="True"
-                             IsDocumentEnabled="True"
-                             HorizontalScrollBarVisibility="Disabled"
-                             VerticalScrollBarVisibility="Auto">
-                    <FlowDocument PagePadding="0" />
-                </RichTextBox>
-            </Grid>
+                CornerRadius="8">
+            <RichTextBox x:Name="LogRichTextBox"
+                         MinHeight="0"
+                         Padding="6,4"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         FontFamily="Global Monospace"
+                         FontSize="12"
+                         IsReadOnly="True"
+                         IsDocumentEnabled="True"
+                         HorizontalScrollBarVisibility="Disabled"
+                         VerticalScrollBarVisibility="Auto">
+                <FlowDocument PagePadding="0" />
+            </RichTextBox>
         </Border>
 
     </Grid>

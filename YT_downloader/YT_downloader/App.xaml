@@ -12,7 +12,7 @@
                 <Setter Property="Background" Value="{DynamicResource ButtonBrush}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorderBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Padding" Value="16,9" />
+                <Setter Property="Padding" Value="12,5" />
                 <Setter Property="Cursor" Value="Hand" />
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="Template">
@@ -22,7 +22,7 @@
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="8">
+                                    CornerRadius="6">
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
@@ -59,7 +59,7 @@
                 <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                 <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Padding" Value="12,9" />
+                <Setter Property="Padding" Value="8,4" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
             </Style>
 
@@ -76,7 +76,7 @@
                 <Setter Property="Background" Value="{DynamicResource InputBrush}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Padding" Value="10,8" />
+                <Setter Property="Padding" Value="8,4" />
                 <Setter Property="MaxDropDownHeight" Value="280" />
                 <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
                 <Setter Property="Template">
@@ -101,7 +101,7 @@
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="32" />
+                                                        <ColumnDefinition Width="26" />
                                                     </Grid.ColumnDefinitions>
                                                     <ContentPresenter Margin="{Binding Padding, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                                                       HorizontalAlignment="Left"
@@ -176,7 +176,7 @@
             <Style TargetType="ComboBoxItem">
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
                 <Setter Property="Background" Value="{DynamicResource ComboBoxItemBrush}" />
-                <Setter Property="Padding" Value="10,7" />
+                <Setter Property="Padding" Value="8,5" />
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                 <Setter Property="Template">
                     <Setter.Value>
