@@ -56,6 +56,10 @@ YT_downloader/                         ← корень .sln (YT_downloader.slnx
   - `--concurrent-fragments N` добавляется только если `request.ConcurrentFragments > 1`
     (иначе аргумент не передаётся вовсе — поведение yt-dlp по умолчанию).
   - `EnsureTools` — проверка наличия yt-dlp/ffmpeg/ffprobe/JS-рантайма перед операцией.
+  - `VerifyMediaToolsStartAsync` — перед первой загрузкой за сессию запускает `ffmpeg/ffprobe -version`;
+    если бинарник не стартует (например, `0xC0000142` на некоторых Windows 10), загрузка не начинается,
+    а пользователь получает понятный совет заменить сборку. `IsPostprocessorCrashError` распознаёт
+    «list index out of range» — так yt-dlp сообщает об аварии ffmpeg без вывода при слиянии.
   - `_operationGate` (SemaphoreSlim) не даёт двум операциям использовать процесс одновременно;
     `_downloadRunning` (Interlocked) — отдельная защита от параллельных загрузок с понятной
     ошибкой `YtDlpErrorKind.AlreadyRunning`.

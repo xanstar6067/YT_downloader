@@ -12,6 +12,8 @@ public sealed class YtDlpService : IYtDlpService
     private const string ProgressTemplate =
         "download:download:%(info.id)s|%(info.format_id)s|%(progress.downloaded_bytes)s|%(progress.total_bytes,progress.total_bytes_estimate)s|%(progress._percent_str)s|%(progress._speed_str)s|%(progress._downloaded_bytes_str)s/%(progress._total_bytes_str)s|%(progress._eta_str)s|%(info.playlist_index)s|%(info.playlist_count)s|%(info.vcodec)s|%(info.acodec)s|%(progress.fragment_index)s|%(progress.fragment_count)s";
     private const int MaximumDownloadAttempts = 2;
+    private const int DllInitializationFailedExitCode = unchecked((int)0xC0000142);
+    private static readonly TimeSpan MediaToolCheckTimeout = TimeSpan.FromSeconds(30);
 
     private readonly string _toolsDirectory;
     private readonly string _ytDlpPath;
@@ -22,6 +24,7 @@ public sealed class YtDlpService : IYtDlpService
     private readonly object _processSync = new();
     private Process? _activeProcess;
     private int _downloadRunning;
+    private bool _mediaToolsVerified;
 
     public YtDlpService(string toolsDirectory)
     {
@@ -102,6 +105,7 @@ public sealed class YtDlpService : IYtDlpService
             await _operationGate.WaitAsync(cancellationToken);
             try
             {
+                await VerifyMediaToolsStartAsync(cancellationToken);
                 Directory.CreateDirectory(request.OutputDirectory);
                 var arguments = BuildDownloadArguments(request);
                 var progressAggregator = new DownloadProgressAggregator(request.Mode);
@@ -515,6 +519,75 @@ public sealed class YtDlpService : IYtDlpService
         }
     }
 
+    // yt-dlp проверяет ffmpeg лишь по наличию файла, а аварийный запуск при слиянии
+    // превращается в непонятное "list index out of range" уже после скачивания потоков.
+    private async Task VerifyMediaToolsStartAsync(CancellationToken cancellationToken)
+    {
+        if (_mediaToolsVerified)
+        {
+            return;
+        }
+
+        foreach (var toolPath in new[] { _ffmpegPath, _ffprobePath })
+        {
+            var exitCode = await RunToolVersionCheckAsync(toolPath, cancellationToken);
+            if (exitCode != 0)
+            {
+                throw CreateMediaToolStartException(Path.GetFileName(toolPath), exitCode);
+            }
+        }
+
+        _mediaToolsVerified = true;
+    }
+
+    private static async Task<int> RunToolVersionCheckAsync(string toolPath, CancellationToken cancellationToken)
+    {
+        using var process = CreateProcess(toolPath, ["-hide_banner", "-version"]);
+        try
+        {
+            process.Start();
+        }
+        catch (Win32Exception exception)
+        {
+            throw new YtDlpException(
+                YtDlpErrorKind.FfmpegMissing,
+                $"Не удалось запустить {Path.GetFileName(toolPath)}. Проверьте целостность файла в папке Tools.",
+                exception.Message,
+                exception);
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(MediaToolCheckTimeout);
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var standardErrorTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            TryTerminate(process);
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new YtDlpException(
+                YtDlpErrorKind.FfmpegMissing,
+                $"{Path.GetFileName(toolPath)} не ответил за {MediaToolCheckTimeout.TotalSeconds:0} с. Проверьте, не блокирует ли его антивирус.");
+        }
+
+        await Task.WhenAll(standardOutputTask, standardErrorTask);
+        return process.ExitCode;
+    }
+
+    internal static YtDlpException CreateMediaToolStartException(string toolName, int exitCode)
+    {
+        var code = $"0x{exitCode:X8}";
+        var message = exitCode == DllInitializationFailedExitCode
+            ? $"{toolName} не запускается на этом компьютере (ошибка {code}: сбой инициализации системных библиотек). "
+              + "Замените ffmpeg.exe и ffprobe.exe в папке Tools сборкой «essentials» с gyan.dev или сборкой BtbN (win64-gpl), "
+              + "затем перезапустите приложение. Также помогает установка последних обновлений Windows и проверка исключений антивируса."
+            : $"{toolName} завершился с кодом {code} при проверке запуска. Замените ffmpeg.exe и ffprobe.exe в папке Tools другой сборкой.";
+        return new YtDlpException(YtDlpErrorKind.FfmpegMissing, message, $"{toolName} -version exit code {code}");
+    }
+
     private static void ReportLines(string text, IProgress<string>? log)
     {
         foreach (var line in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -581,6 +654,15 @@ public sealed class YtDlpService : IYtDlpService
                 details);
         }
 
+        if (IsPostprocessorCrashError(details))
+        {
+            return new YtDlpException(
+                YtDlpErrorKind.FfmpegMissing,
+                "Потоки скачаны, но ffmpeg аварийно завершился при их объединении. Исходные файлы оставлены в папке загрузки. "
+                + "Замените ffmpeg.exe и ffprobe.exe в папке Tools другой сборкой (например, «essentials» с gyan.dev).",
+                details);
+        }
+
         if (ContainsAny(details, "ffmpeg not found", "ffprobe not found", "Postprocessing: ffmpeg"))
         {
             return new YtDlpException(
@@ -597,6 +679,10 @@ public sealed class YtDlpService : IYtDlpService
 
     internal static bool IsForbiddenDownloadError(string details) =>
         ContainsAny(details, "HTTP Error 403", "HTTP 403: Forbidden");
+
+    // При аварии ffmpeg без вывода yt-dlp падает на разборе пустого stderr постпроцессора.
+    internal static bool IsPostprocessorCrashError(string details) =>
+        ContainsAny(details, "list index out of range");
 
     internal static bool IsBotVerificationError(string details) =>
         ContainsAny(

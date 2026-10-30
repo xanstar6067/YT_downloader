@@ -121,6 +121,24 @@ public sealed class YtDlpServiceArgumentTests
     }
 
     [TestMethod]
+    public void PostprocessorCrashDetection_RecognizesEmptyFfmpegOutput()
+    {
+        Assert.IsTrue(YtDlpService.IsPostprocessorCrashError("ERROR: list index out of range"));
+        Assert.IsFalse(YtDlpService.IsPostprocessorCrashError(
+            "ERROR: unable to download video data: HTTP Error 404: Not Found"));
+    }
+
+    [TestMethod]
+    public void MediaToolStartFailure_ExplainsDllInitializationError()
+    {
+        var exception = YtDlpService.CreateMediaToolStartException("ffmpeg.exe", unchecked((int)0xC0000142));
+
+        Assert.AreEqual(YtDlpErrorKind.FfmpegMissing, exception.Kind);
+        StringAssert.Contains(exception.Message, "0xC0000142");
+        StringAssert.Contains(exception.Message, "ffmpeg.exe");
+    }
+
+    [TestMethod]
     public void BrowserCookies_AreOnlyAddedWhenExplicitlySelected()
     {
         var service = new YtDlpService(Path.GetTempPath());
